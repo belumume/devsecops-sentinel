@@ -68,6 +68,12 @@ env/
 .aws-sam/
 samconfig.toml.local
 
+# Prevent name clash corrupted directories (OneDrive, Google Drive, etc.)
+.aws-sam*
+.git*clash*
+*\(#\ Name\ clash*
+*#\ Name\ clash*
+
 # Environment variables
 .env
 .env.local
