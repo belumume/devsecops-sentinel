@@ -3,6 +3,11 @@ import json
 import boto3
 import hmac
 import hashlib
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 # Initialize AWS clients
 sfn_client = boto3.client("stepfunctions")
@@ -13,7 +18,7 @@ def lambda_handler(event, context):
     Handles and validates incoming GitHub webhooks.
     This function now performs signature validation before starting the Step Function.
     """
-    print("--- Webhook Handler Invoked ---")
+    logger.info("--- Webhook Handler Invoked ---")
 
     # --- 1. Signature Validation ---
     try:
@@ -25,7 +30,7 @@ def lambda_handler(event, context):
         github_signature = headers.get("x-hub-signature-256")
         
         if not github_signature:
-            print("ERROR: Request is missing X-Hub-Signature-256 header.")
+            logger.error("Request is missing X-Hub-Signature-256 header.")
             return error_response("Unauthorized", 401)
         
         request_body = event.get("body", "")
@@ -36,13 +41,13 @@ def lambda_handler(event, context):
         expected_signature = "sha256=" + hash_object.hexdigest()
         
         if not hmac.compare_digest(expected_signature, github_signature):
-            print("ERROR: Computed signature does not match GitHub signature.")
+            logger.error("Computed signature does not match GitHub signature.")
             return error_response("Unauthorized", 401)
 
-        print("SUCCESS: Signature validated successfully.")
+        logger.info("Signature validated successfully.")
 
     except Exception as e:
-        print(f"ERROR: An exception occurred during signature validation: {e}")
+        logger.error(f"An exception occurred during signature validation: {e}")
         return error_response("Internal Server Error", 500)
 
     # --- 2. Process the Validated Request ---
@@ -102,11 +107,11 @@ def lambda_handler(event, context):
             name=execution_name
         )
         
-        print(f"SUCCESS: Started Step Function execution: {response['executionArn']}")
+        logger.info(f"Started Step Function execution: {response['executionArn']}")
         return success_response(f"Analysis started for PR #{pr_details['pr_number']}")
 
     except Exception as e:
-        print(f"ERROR: An unexpected error occurred during processing: {e}")
+        logger.error(f"An unexpected error occurred during processing: {e}")
         return error_response("Failed to process request.", 500)
 
 def success_response(message):

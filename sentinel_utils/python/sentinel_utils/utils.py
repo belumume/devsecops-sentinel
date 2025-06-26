@@ -33,4 +33,3 @@ def get_github_token():
     except Exception as e:
         logger.error(f"Failed to retrieve GitHub token from Secrets Manager: {e}")
         raise
-

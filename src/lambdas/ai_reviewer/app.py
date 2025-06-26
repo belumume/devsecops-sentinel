@@ -33,7 +33,7 @@ def lambda_handler(event, context):
         logger.info(f"Analyzing PR #{pr_number} in {repo_full_name}")
         
         # Get GitHub token from Secrets Manager
-        from sentinel_utils.python.utils import get_github_token
+        from sentinel_utils.utils import get_github_token
         github_token = get_github_token()
         
         # Fetch PR diff from GitHub

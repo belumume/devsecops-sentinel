@@ -1,13 +1,16 @@
-import os
+import io
 import json
 import logging
+import os
 import subprocess
 import tempfile
+import zipfile
 from typing import List, Dict, Any
+
 import boto3
 import requests
-import zipfile
-import io
+
+from sentinel_utils.utils import get_github_token
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -15,8 +18,6 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 
 # Initialize AWS clients
 secrets_manager = boto3.client("secretsmanager")
-
-from sentinel_utils.python.utils import get_github_token
 
 def lambda_handler(event, context):
     """

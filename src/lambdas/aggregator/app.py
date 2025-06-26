@@ -1,9 +1,12 @@
 import json
-import os
-import boto3
 import logging
-import requests
+import os
 from typing import Dict, List, Any
+
+import boto3
+import requests
+
+from sentinel_utils.utils import get_github_token
 
 # Configure logging following AWS best practices
 logger = logging.getLogger(__name__)
@@ -12,9 +15,6 @@ logger.setLevel(logging.INFO)
 # Initialize AWS clients
 secrets_manager = boto3.client("secretsmanager")
 dynamodb = boto3.resource("dynamodb")
-
-
-from sentinel_utils.python.utils import get_github_token
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
