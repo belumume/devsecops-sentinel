@@ -1,6 +1,9 @@
 # Core AWS SDK
 boto3>=1.26.0
+
+# HTTP requests with retry logic
 requests>=2.31.0  # For GitHub API calls
+urllib3>=1.26.0
 
 # JSON processing
 json5>=0.9.0  # For more robust JSON parsing if needed 

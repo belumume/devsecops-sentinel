@@ -5,11 +5,20 @@ import hmac
 import hashlib
 from unittest.mock import patch, MagicMock
 import os
+import importlib.util
 import sys
 
-# Add the Lambda function directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../src/lambdas/webhook_handler'))
-from app import lambda_handler, success_response, error_response
+# Dynamically import the Lambda function module
+lambda_path = os.path.join(os.path.dirname(__file__), '../../src/lambdas/webhook_handler/app.py')
+spec = importlib.util.spec_from_file_location("webhook_handler_app", lambda_path)
+app = importlib.util.module_from_spec(spec)
+sys.modules["webhook_handler_app"] = app
+spec.loader.exec_module(app)
+
+# Import the functions we need
+lambda_handler = app.lambda_handler
+success_response = app.success_response
+error_response = app.error_response
 
 
 class TestWebhookHandler:
@@ -54,8 +63,8 @@ class TestWebhookHandler:
         'VULNERABILITY_SCANNER_FUNCTION_ARN': 'arn:aws:lambda:us-east-1:123456789012:function:vuln-scanner',
         'AI_REVIEWER_FUNCTION_ARN': 'arn:aws:lambda:us-east-1:123456789012:function:ai-reviewer'
     })
-    @patch('app.sfn_client')
-    @patch('app.secrets_manager')
+    @patch.object(app, 'sfn_client')
+    @patch.object(app, 'secrets_manager')
     def test_valid_webhook_triggers_step_function(self, mock_secrets, mock_sfn, valid_webhook_event):
         """Test that a valid webhook triggers Step Functions execution."""
         # Mock secrets manager response
@@ -77,7 +86,7 @@ class TestWebhookHandler:
         mock_sfn.start_execution.assert_called_once()
         
     @patch.dict(os.environ, {'GITHUB_WEBHOOK_SECRET_NAME': 'test-secret'})
-    @patch('app.secrets_manager')
+    @patch.object(app, 'secrets_manager')
     def test_invalid_signature_returns_401(self, mock_secrets, valid_webhook_event):
         """Test that invalid signature returns 401 Unauthorized."""
         # Mock secrets manager with different secret
@@ -91,7 +100,7 @@ class TestWebhookHandler:
         assert json.loads(response['body'])['error'] == 'Unauthorized'
         
     @patch.dict(os.environ, {'GITHUB_WEBHOOK_SECRET_NAME': 'test-secret'})
-    @patch('app.secrets_manager')
+    @patch.object(app, 'secrets_manager')
     def test_missing_signature_header_returns_401(self, mock_secrets):
         """Test that missing signature header returns 401."""
         # Mock secrets manager (though it shouldn't be called)
@@ -109,7 +118,7 @@ class TestWebhookHandler:
         assert response['statusCode'] == 401
         
     @patch.dict(os.environ, {'GITHUB_WEBHOOK_SECRET_NAME': 'test-secret'})
-    @patch('app.secrets_manager')
+    @patch.object(app, 'secrets_manager')
     def test_ping_event_returns_success(self, mock_secrets):
         """Test that ping events are handled correctly."""
         mock_secrets.get_secret_value.return_value = {

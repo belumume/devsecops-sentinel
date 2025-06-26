@@ -11,4 +11,9 @@ responses>=0.23.0
 
 # Additional test utilities
 freezegun>=1.2.0  # For mocking time
-faker>=19.0.0  # For generating test data 
+faker>=19.0.0  # For generating test data
+
+# Lambda function dependencies needed for testing
+boto3>=1.26.0
+requests>=2.28.0
+urllib3>=1.26.0 

@@ -4,6 +4,10 @@
 # Core dependencies
 boto3>=1.26.0
 
+# HTTP requests with retry logic
+requests>=2.28.0
+urllib3>=1.26.0
+
 # Secret scanning - Note: trufflehog is distributed as a binary, not a Python package
 # For Lambda deployment, we'll need to:
 # 1. Download the trufflehog binary from https://github.com/trufflesecurity/trufflehog/releases
@@ -16,3 +20,5 @@ boto3>=1.26.0
 
 # For now, using GitPython for repository operations as a fallback
 GitPython>=3.1.40
+
+# Zip file handling is built-in to Python
