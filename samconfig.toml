@@ -1,0 +1,13 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "devsecops-sentinel"
+resolve_s3 = true
+s3_prefix = "devsecops-sentinel"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+disable_rollback = true
+parameter_overrides = "GitHubWebhookSecretName=\"DevSecOpsSentinel/WebhookSecret\""
+image_repositories = []

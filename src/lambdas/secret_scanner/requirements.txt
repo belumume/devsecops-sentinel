@@ -1,0 +1,18 @@
+# We will need these libraries for the scanner.
+# Packaging them for Lambda, especially trufflehog, might require a custom build or layer.
+
+# Core dependencies
+boto3>=1.26.0
+
+# Secret scanning - Note: trufflehog is distributed as a binary, not a Python package
+# For Lambda deployment, we'll need to:
+# 1. Download the trufflehog binary from https://github.com/trufflesecurity/trufflehog/releases
+# 2. Include it in a Lambda layer with proper permissions
+# The binary should be placed in /opt/bin/trufflehog in the layer
+
+# Alternative Python-based secret scanners we could use:
+# detect-secrets>=1.4.0  # Yelp's detect-secrets
+# whispers>=2.1.0  # Another Python-based secret scanner
+
+# For now, using GitPython for repository operations as a fallback
+GitPython>=3.1.40

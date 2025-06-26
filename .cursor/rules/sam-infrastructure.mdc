@@ -1,0 +1,54 @@
+---
+description: "AWS SAM infrastructure rules for template.yaml, deployment configuration, and CloudFormation best practices"
+globs: ["**/template.yaml", "**/template.yml", "**/samconfig.toml", "**/buildspec.yml"]
+alwaysApply: false
+---
+
+# AWS SAM Infrastructure Rules
+
+## SAM Template Structure
+
+The template.yaml file is the single source of truth for all AWS infrastructure.
+
+### Required Resources
+
+#### Lambda Function Configuration
+- Use Python 3.11 runtime
+- Set appropriate memory and timeout based on function type
+- Scanner functions: 1024MB memory, 300s timeout, 2048MB ephemeral storage
+- AI Reviewer functions: 512MB memory, 900s timeout
+
+#### IAM Role Templates
+```yaml
+# Minimal permissions for scanner Lambda
+ScannerRole:
+  Type: AWS::IAM::Role
+  Properties:
+    AssumeRolePolicyDocument:
+      Version: '2012-10-17'
+      Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+    ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+```
+
+## Step Functions State Machine
+- Use Map state for parallel execution
+- Include error handling with Catch blocks
+- Implement retry logic for transient failures
+
+## Security Requirements
+- Use least privilege IAM permissions
+- Store secrets in AWS Secrets Manager
+- Enable API Gateway throttling
+- Set Lambda reserved concurrency limits
+
+## Best Practices
+- Use descriptive resource names with Function/Table/Api suffix
+- Avoid hardcoded ARNs - use !Ref and !GetAtt
+- Tag all resources appropriately
+- Use PAY_PER_REQUEST billing for DynamoDB
+- Set appropriate CloudWatch log retention 

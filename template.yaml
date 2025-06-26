@@ -1,0 +1,219 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  DevSecOps Sentinel: An automated, AI-powered security and quality analysis platform for GitHub repositories.
+
+Parameters:
+  GitHubWebhookSecretName:
+    Type: String
+    Description: The name of the secret in AWS Secrets Manager that holds the GitHub webhook secret.
+  ScannerLayerArn:
+    Type: String
+    Description: The ARN of the Lambda layer containing scanner tools (git, trufflehog, safety, npm)
+    Default: ""
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 512
+    Runtime: python3.11
+    Architectures:
+      - x86_64
+
+Conditions:
+  HasScannerLayer: !Not [!Equals [!Ref ScannerLayerArn, ""]]
+
+Resources:
+  SentinelUtilsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: DevSecOps-Sentinel-Utils
+      Description: Shared utility functions for DevSecOps Sentinel.
+      ContentUri: sentinel_utils/
+      CompatibleRuntimes:
+        - python3.11
+
+  ScansTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "pull_request_id"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "pull_request_id"
+          KeyType: "HASH"
+      BillingMode: PAY_PER_REQUEST
+
+  StateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "states.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "LambdaInvokePolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "lambda:InvokeFunction"
+                Resource: 
+                  - !GetAtt SecretScannerFunction.Arn
+                  - !GetAtt VulnerabilityScannerFunction.Arn
+                  - !GetAtt AIReviewerFunction.Arn
+                  - !GetAtt AggregatorFunction.Arn
+
+  AnalysisStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Definition:
+        Comment: "State machine for orchestrating DevSecOps Sentinel scans."
+        StartAt: ParallelScans
+        States:
+          ParallelScans:
+            Type: Map
+            ItemsPath: "$.analysis_types"
+            ResultPath: "$.scan_results"
+            Next: AggregateResults
+            Iterator:
+              StartAt: RunScanner
+              States:
+                RunScanner:
+                  Type: Task
+                  Resource: "arn:aws:states:::lambda:invoke"
+                  Parameters:
+                    FunctionName.$: "$.function_name"
+                    Payload.$: "$.payload"
+                  End: true
+          AggregateResults:
+            Type: Task
+            Resource: "arn:aws:states:::lambda:invoke"
+            Parameters:
+              FunctionName: !GetAtt AggregatorFunction.Arn
+              Payload.$: "$"
+            End: true
+      Role: !GetAtt StateMachineRole.Arn
+
+  SecretScannerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/lambdas/secret_scanner/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref SentinelUtilsLayer
+        - !If [HasScannerLayer, !Ref ScannerLayerArn, !Ref "AWS::NoValue"]
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - "secretsmanager:GetSecretValue"
+            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:DevSecOpsSentinel/GitHubToken-*"
+      Environment:
+        Variables:
+          GITHUB_TOKEN_SECRET_NAME: "DevSecOpsSentinel/GitHubToken"
+
+  VulnerabilityScannerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/lambdas/vulnerability_scanner/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref SentinelUtilsLayer
+        - !If [HasScannerLayer, !Ref ScannerLayerArn, !Ref "AWS::NoValue"]
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - "secretsmanager:GetSecretValue"
+            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:DevSecOpsSentinel/GitHubToken-*"
+      Environment:
+        Variables:
+          GITHUB_TOKEN_SECRET_NAME: "DevSecOpsSentinel/GitHubToken"
+
+  AIReviewerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/lambdas/ai_reviewer/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref SentinelUtilsLayer
+        - !If [HasScannerLayer, !Ref ScannerLayerArn, !Ref "AWS::NoValue"]
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - "bedrock:InvokeModel"
+            Resource: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0"
+          - Effect: Allow
+            Action:
+              - "secretsmanager:GetSecretValue"
+            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:DevSecOpsSentinel/GitHubToken-*"
+      Environment:
+        Variables:
+          GITHUB_TOKEN_SECRET_NAME: "DevSecOpsSentinel/GitHubToken"
+
+  AggregatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/lambdas/aggregator/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref SentinelUtilsLayer
+      MemorySize: 1024
+      Timeout: 300
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref ScansTable
+        - Statement:
+          - Effect: Allow
+            Action:
+              - "secretsmanager:GetSecretValue"
+            # SECURITY IMPROVEMENT: Scoping down permissions to the specific secret
+            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:DevSecOpsSentinel/GitHubToken-*"
+      Environment:
+        Variables:
+          SCANS_TABLE_NAME: !Ref ScansTable
+          # NEW: Pass the secret name to the function
+          GITHUB_TOKEN_SECRET_NAME: "DevSecOpsSentinel/GitHubToken"
+
+  WebhookHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: "src/lambdas/webhook_handler/"
+      Handler: app.lambda_handler
+      Policies:
+        - StepFunctionsExecutionPolicy:
+            StateMachineName: !GetAtt AnalysisStateMachine.Name
+        - Statement:
+            - Effect: Allow
+              Action:
+                - "secretsmanager:GetSecretValue"
+              Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubWebhookSecretName}-*"
+      Environment:
+        Variables:
+          STATE_MACHINE_ARN: !Ref AnalysisStateMachine
+          SECRET_SCANNER_FUNCTION_ARN: !GetAtt SecretScannerFunction.Arn
+          VULNERABILITY_SCANNER_FUNCTION_ARN: !GetAtt VulnerabilityScannerFunction.Arn
+          AI_REVIEWER_FUNCTION_ARN: !GetAtt AIReviewerFunction.Arn
+          GITHUB_WEBHOOK_SECRET_NAME: !Ref GitHubWebhookSecretName
+      Events:
+        WebhookEvent:
+          Type: Api
+          Properties:
+            Path: /webhook
+            Method: post
+            RestApiId: !Ref ApiGateway
+
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+
+Outputs:
+  WebhookApiUrl:
+    Description: "API Gateway endpoint URL for the Sentinel webhook"
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/webhook"

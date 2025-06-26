@@ -1,0 +1,84 @@
+---
+description: "Testing strategy rules for unit tests, integration tests, and E2E testing with pytest and moto"
+globs: ["**/test_*.py", "**/tests/**/*.py", "**/conftest.py", "**/.coveragerc"]
+alwaysApply: false
+---
+
+# Testing Strategy Rules
+
+## Testing Philosophy
+All code must be thoroughly tested before deployment. Unit tests required for business logic.
+
+## Unit Testing with pytest and moto
+
+### Test Structure
+```
+tests/
+├── unit/
+│   ├── test_webhook_handler.py
+│   ├── test_secret_scanner.py
+│   ├── test_vulnerability_scanner.py
+│   ├── test_ai_reviewer.py
+│   └── test_aggregator.py
+├── integration/
+│   └── test_workflow.py
+├── fixtures/
+│   ├── github_events.py
+│   └── sample_code.py
+└── conftest.py
+```
+
+### Base Test Template
+```python
+import pytest
+from moto import mock_dynamodb, mock_secretsmanager, mock_stepfunctions
+import boto3
+from unittest.mock import patch, MagicMock
+
+@pytest.fixture
+def aws_credentials():
+    """Mocked AWS Credentials for moto."""
+    import os
+    os.environ["AWS_ACCESS_KEY_ID"] = "testing"
+    os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+    os.environ["AWS_SECURITY_TOKEN"] = "testing"
+    os.environ["AWS_SESSION_TOKEN"] = "testing"
+    os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+
+@pytest.fixture
+def lambda_context():
+    """Mock Lambda context object."""
+    context = MagicMock()
+    context.function_name = "test-function"
+    context.request_id = "test-request-id"
+    return context
+```
+
+## Testing Requirements
+- Mock all AWS service calls with moto
+- Test error paths and edge cases
+- Maintain >80% code coverage
+- Use descriptive test function names
+- Test isolation - each test must be independent
+- Never call real APIs in unit tests
+
+## Integration Testing
+- Use sam local invoke with test events
+- Create test GitHub repository
+- Verify end-to-end workflow
+
+## Coverage Requirements
+```ini
+# .coveragerc
+[run]
+source = src/
+omit = 
+    */tests/*
+    */venv/*
+    */__pycache__/*
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False
+``` 

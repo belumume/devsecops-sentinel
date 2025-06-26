@@ -1,0 +1,8 @@
+{
+  "repo_details": {
+    "pull_request_id": "123456789",
+    "repository_full_name": "test-org/test-repo",
+    "commit_sha": "abc123def456789",
+    "pr_number": 42
+  }
+} 

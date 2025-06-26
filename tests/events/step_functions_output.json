@@ -1,0 +1,85 @@
+{
+  "repo_details": {
+    "pull_request_id": "123456789",
+    "repository_full_name": "test-org/test-repo",
+    "commit_sha": "abc123def456789",
+    "pr_number": 42
+  },
+  "scan_results": [
+    {
+      "Payload": {
+        "statusCode": 200,
+        "scanner_type": "secrets",
+        "findings": [
+          {
+            "Source": "trufflehog",
+            "Reason": "High Entropy",
+            "Verified": false,
+            "type": "API Key",
+            "file": "config.py",
+            "line": 42
+          }
+        ],
+        "repo_details": {
+          "pull_request_id": "123456789",
+          "repository_full_name": "test-org/test-repo",
+          "commit_sha": "abc123def456789",
+          "pr_number": 42
+        }
+      }
+    },
+    {
+      "Payload": {
+        "statusCode": 200,
+        "scanner_type": "vulnerabilities",
+        "findings": [
+          {
+            "package": "requests",
+            "installed_version": "2.25.0",
+            "vulnerability": "CVE-2023-32681",
+            "severity": "HIGH",
+            "description": "Unintended leak of Proxy-Authorization header",
+            "fixed_version": "2.31.0",
+            "file": "requirements.txt"
+          }
+        ],
+        "repo_details": {
+          "pull_request_id": "123456789",
+          "repository_full_name": "test-org/test-repo",
+          "commit_sha": "abc123def456789",
+          "pr_number": 42
+        }
+      }
+    },
+    {
+      "Payload": {
+        "statusCode": 200,
+        "scanner_type": "ai_review",
+        "findings": [
+          {
+            "type": "security",
+            "severity": "HIGH",
+            "file": "config.py",
+            "line": 15,
+            "suggestion": "Avoid constructing SQL queries with string concatenation. Use parameterized queries to prevent SQL injection.",
+            "category": "Security"
+          },
+          {
+            "type": "performance",
+            "severity": "MEDIUM",
+            "file": "app.py",
+            "line": 78,
+            "suggestion": "This nested loop has O(n²) complexity. Consider using a set for lookups to improve to O(n).",
+            "category": "Performance"
+          }
+        ],
+        "repo_details": {
+          "pull_request_id": "123456789",
+          "repository_full_name": "test-org/test-repo",
+          "commit_sha": "abc123def456789",
+          "pr_number": 42
+        }
+      }
+    }
+  ]
+} 
