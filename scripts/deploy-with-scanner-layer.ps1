@@ -8,16 +8,22 @@ param(
 Write-Host "🚀 DevSecOps Sentinel Deployment with Scanner Tools" -ForegroundColor Green
 Write-Host "Region: $Region" -ForegroundColor Yellow
 
-# Step 1: Build the minimal layer as fallback
-Write-Host "`n📦 Building minimal layer..." -ForegroundColor Blue
-& "$PSScriptRoot\build-minimal-layer.ps1"
+# Step 1: Check if full scanner layer exists
+if (Test-Path "scanner-layer.zip") {
+    Write-Host "`n📦 Using full scanner layer with tools..." -ForegroundColor Green
+    $LayerFile = "scanner-layer.zip"
+} else {
+    Write-Host "`n📦 Full scanner layer not found, building minimal layer..." -ForegroundColor Yellow
+    & "$PSScriptRoot\build-minimal-layer.ps1"
+    $LayerFile = "minimal-scanner-layer.zip"
+}
 
-# Step 2: Deploy the minimal layer first
+# Step 2: Deploy the scanner layer
 Write-Host "`n📤 Deploying Lambda layer..." -ForegroundColor Blue
 $LayerOutput = aws lambda publish-layer-version `
     --layer-name DevSecOpsSentinel-Scanner `
-    --description 'Scanner layer for DevSecOps Sentinel' `
-    --zip-file fileb://minimal-scanner-layer.zip `
+    --description 'Scanner layer for DevSecOps Sentinel with tools' `
+    --zip-file fileb://$LayerFile `
     --compatible-runtimes python3.11 `
     --region $Region `
     --output json
@@ -35,9 +41,16 @@ Write-Host "`n🚀 Deploying SAM application with scanner layer..." -ForegroundC
 sam deploy --parameter-overrides "ScannerLayerArn=$LayerArn"
 
 Write-Host "`n✅ Deployment complete!" -ForegroundColor Green
-Write-Host "`nNote: The scanners are currently using a minimal layer." -ForegroundColor Yellow
-Write-Host "For full scanner functionality with tools (npm, safety, trufflehog)," -ForegroundColor Yellow
-Write-Host "you need to build and deploy the full scanner layer on a Linux system." -ForegroundColor Yellow
+if ($LayerFile -eq "scanner-layer.zip") {
+    Write-Host "`n🎉 Full scanner tools deployed successfully!" -ForegroundColor Green
+    Write-Host "Your Lambda functions now have access to:" -ForegroundColor Cyan
+    Write-Host "  - TruffleHog (secret detection)" -ForegroundColor Cyan
+    Write-Host "  - npm audit (Node.js vulnerability scanning)" -ForegroundColor Cyan
+    Write-Host "  - safety (Python vulnerability scanning)" -ForegroundColor Cyan
+} else {
+    Write-Host "`nNote: Using minimal layer without scanner tools." -ForegroundColor Yellow
+    Write-Host "Build scanner-layer.zip on Linux for full functionality." -ForegroundColor Yellow
+}
 
 # Get the webhook URL
 Write-Host "`n🔗 Getting webhook URL..." -ForegroundColor Blue
