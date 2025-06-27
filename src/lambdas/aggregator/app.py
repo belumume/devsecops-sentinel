@@ -295,7 +295,7 @@ def format_errors_section(errors: List[Dict[str, Any]]) -> str:
 def format_footer(repo_details: Dict[str, Any]) -> str:
     """Format the comment footer."""
     commit_sha = repo_details.get('commit_sha', 'unknown')[:7]
-    return f"\n---\n*🚀 Analysis completed for commit `{commit_sha}` • Powered by [DevSecOps Sentinel](https://github.com/aws-lambda-hackathon/devsecops-sentinel)*"
+    return f"\n---\n*🚀 Analysis completed for commit `{commit_sha}` • Powered by [DevSecOps Sentinel](https://github.com/belumume/devsecops-sentinel)*"
 
 
 def post_github_comment(repo_details: Dict[str, Any], comment_body: str) -> Dict[str, Any]:
