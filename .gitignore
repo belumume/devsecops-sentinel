@@ -64,6 +64,10 @@ env/
 .project
 .pydevproject
 
+# Cursor AI - Ignore user settings and secrets, but keep shared rules
+.cursor/
+!/.cursor/rules/
+
 # AWS SAM
 .aws-sam/
 samconfig.toml.local
