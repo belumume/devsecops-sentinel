@@ -175,12 +175,15 @@ class TestSecretScanner:
                 "Raw": "test_key"
             })
             
-            with patch('secret_scanner_app.subprocess.run', return_value=mock_result):
-                findings = run_trufflehog_scan(temp_dir)
-                
-                assert len(findings) == 1
-                assert findings[0]['type'] == "AWS API Key"
-                assert findings[0]['file'] == "test.py"
+            with patch('secret_scanner_app.find_tool', return_value='trufflehog'):
+                with patch('secret_scanner_app.subprocess.run', return_value=mock_result):
+                    findings = run_trufflehog_scan(temp_dir)
+                    
+                    assert len(findings) == 1
+                    assert findings[0]['type'] == "AWS API Key"
+                    assert findings[0]['file'] == "test.py"
+                    assert findings[0]['line'] == 1
+                    assert findings[0]['raw'] == "test_key"
     
     def test_run_trufflehog_scan_failure(self):
         """Test trufflehog scan failure handling."""
@@ -189,10 +192,14 @@ class TestSecretScanner:
             mock_result.returncode = 1
             mock_result.stderr = "Trufflehog error"
             
-            with patch('secret_scanner_app.subprocess.run', return_value=mock_result):
-                findings = run_trufflehog_scan(temp_dir)
-                
-                assert findings == []
+            with patch('secret_scanner_app.find_tool', return_value='trufflehog'):
+                with patch('secret_scanner_app.subprocess.run', return_value=mock_result):
+                    findings = run_trufflehog_scan(temp_dir)
+                    
+                    # Now it should return an error finding instead of empty list
+                    assert len(findings) == 1
+                    assert findings[0]['type'] == 'tool_error'
+                    assert 'Trufflehog error' in findings[0]['raw']
     
     @patch.object(app, 'get_github_token')
     def test_invalid_github_token(self, mock_token, valid_event):

@@ -87,7 +87,13 @@ def aggregate_scan_results(scan_results: List[Dict[str, Any]]) -> Dict[str, List
     Returns:
         Dictionary with aggregated findings by type
     """
-    aggregated = {'secrets': [], 'vulnerabilities': [], 'ai_suggestions': [], 'errors': []}
+    aggregated = {
+        'secrets': [], 
+        'vulnerabilities': [], 
+        'ai_suggestions': [], 
+        'errors': [],
+        'tool_errors': []  # Add separate category for tool availability issues
+    }
     
     for result in scan_results:
         try:
@@ -107,14 +113,22 @@ def aggregate_scan_results(scan_results: List[Dict[str, Any]]) -> Dict[str, List
                 logger.warning(f"Received error from {scanner_type} scanner: {error_msg}")
                 continue
 
-            if scanner_type == 'secrets': 
-                aggregated['secrets'].extend(findings)
-            elif scanner_type == 'vulnerabilities': 
-                aggregated['vulnerabilities'].extend(findings)
-            elif scanner_type == 'ai_review': 
-                aggregated['ai_suggestions'].extend(findings)
+            # Separate tool_error findings from actual findings
+            tool_errors = [f for f in findings if f.get('type') == 'tool_error']
+            actual_findings = [f for f in findings if f.get('type') != 'tool_error']
             
-            logger.info(f"Processed {len(findings)} findings from {scanner_type} scanner.")
+            if tool_errors:
+                aggregated['tool_errors'].extend(tool_errors)
+                logger.warning(f"{scanner_type} scanner reported {len(tool_errors)} tool errors")
+            
+            if scanner_type == 'secrets':
+                aggregated['secrets'].extend(actual_findings)
+            elif scanner_type == 'vulnerabilities':
+                aggregated['vulnerabilities'].extend(actual_findings)
+            elif scanner_type == 'ai_review':
+                aggregated['ai_suggestions'].extend(actual_findings)
+            
+            logger.info(f"Processed {len(actual_findings)} findings from {scanner_type} scanner.")
             
         except Exception as e:
             logger.error(f"Error processing a scan result: {str(e)}", exc_info=True)
@@ -138,12 +152,17 @@ def format_github_comment(findings: Dict[str, List[Any]], repo_details: Dict[str
     vulns_count = len(findings.get('vulnerabilities', []))
     ai_count = len(findings.get('ai_suggestions', []))
     errors_count = len(findings.get('errors', []))
+    tool_errors_count = len(findings.get('tool_errors', []))
     
     # Build the comment sections
     sections = []
     
     # Header
     sections.append(format_header())
+    
+    # Tool errors warning (show prominently if tools are missing)
+    if tool_errors_count > 0:
+        sections.append(format_tool_errors_section(findings['tool_errors']))
     
     # Summary table
     sections.append(format_summary_table(secrets_count, vulns_count, ai_count))
@@ -343,6 +362,30 @@ def format_single_ai_suggestion(suggestion: Dict[str, Any]) -> str:
     result += f"  💡 {recommendation}\n\n"
     
     return result
+
+
+def format_tool_errors_section(tool_errors: List[Dict[str, Any]]) -> str:
+    """Format the tool errors section - shown when scanner tools are missing."""
+    section = "\n### ⚠️ Scanner Tools Not Available\n"
+    section += "**Important:** Some security scanning tools are not available in the current environment. This may result in incomplete security analysis.\n\n"
+    
+    # Group by scanner type
+    tool_issues = {}
+    for error in tool_errors:
+        desc = error.get('raw', error.get('description', 'Tool not available'))
+        if 'npm' in desc.lower():
+            tool_issues['Node.js Scanner'] = "npm tool not available - Node.js vulnerability scanning skipped"
+        elif 'safety' in desc.lower():
+            tool_issues['Python Scanner'] = "safety tool not available - Python vulnerability scanning skipped" 
+        elif 'trufflehog' in desc.lower():
+            tool_issues['Secret Scanner'] = "TruffleHog tool not available - Secret detection may be limited"
+    
+    for scanner, issue in tool_issues.items():
+        section += f"- **{scanner}:** {issue}\n"
+    
+    section += "\n**To fix this:** Deploy the scanner tools Lambda layer. See [deployment instructions](https://github.com/belumume/devsecops-sentinel/blob/main/docs/SCANNER_TOOLS_FIX.md).\n"
+    
+    return section
 
 
 def format_errors_section(errors: List[Dict[str, Any]]) -> str:

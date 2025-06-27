@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import zipfile
 from typing import List, Dict, Any, Optional
+import shutil
 
 import boto3
 import requests
@@ -28,6 +29,16 @@ secrets_manager = boto3.client("secretsmanager")
 # Scanner type constant
 SCANNER_TYPE = "secrets"
 
+# Tool paths - check both standard locations and Lambda layer location
+TRUFFLEHOG_PATHS = ["/opt/bin/trufflehog", "trufflehog", "/usr/bin/trufflehog", "/usr/local/bin/trufflehog"]
+GIT_PATHS = ["/opt/bin/git", "git", "/usr/bin/git"]
+
+def find_tool(tool_paths: List[str]) -> Optional[str]:
+    """Find the first available tool from a list of paths."""
+    for path in tool_paths:
+        if shutil.which(path):
+            return path
+    return None
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
@@ -133,34 +144,74 @@ def run_trufflehog_scan(repo_path: str) -> List[Dict[str, Any]]:
     Returns:
         List of secret findings
     """
-    logger.info(f"Running trufflehog on {repo_path}")
-    command = ["trufflehog", "filesystem", repo_path, "--json"]
+    # Find trufflehog tool
+    trufflehog_cmd = find_tool(TRUFFLEHOG_PATHS)
+    if not trufflehog_cmd:
+        logger.warning("Trufflehog tool not found. Returning tool error finding.")
+        return [{
+            "type": "tool_error",
+            "file": "N/A",
+            "line": None,
+            "raw": "Trufflehog scanner not available - secrets not checked",
+        }]
     
-    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    # Check if git is available (sometimes needed by trufflehog)
+    git_cmd = find_tool(GIT_PATHS)
+    if git_cmd:
+        logger.info(f"Git found at: {git_cmd}")
     
-    # Trufflehog exits with 0 even if secrets are found, but might error for other reasons.
-    if result.returncode != 0:
-        logger.error(f"Trufflehog command failed with exit code {result.returncode}: {result.stderr}")
-        # In case of error, we return no findings but don't kill the whole process
-        return []
-
-    findings = []
-    for line in result.stdout.strip().split('\n'):
-        if not line:
-            continue
-        try:
-            secret = json.loads(line)
-            finding = {
-                "type": secret.get("DetectorName", "Unknown"),
-                "file": extract_file_path(secret),
-                "line": extract_line_number(secret),
-                "raw": secret.get("Raw", ""),
-            }
-            findings.append(finding)
-        except json.JSONDecodeError:
-            logger.warning(f"Could not parse a line from trufflehog output: {line}")
-
-    return findings
+    logger.info(f"Running trufflehog from {trufflehog_cmd} on {repo_path}")
+    
+    # Set PATH to include tool directories
+    env = os.environ.copy()
+    env['PATH'] = '/opt/bin:/usr/local/bin:/usr/bin:/bin:' + env.get('PATH', '')
+    
+    command = [trufflehog_cmd, "filesystem", repo_path, "--json", "--no-update"]
+    
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=False, env=env)
+        
+        # Trufflehog exits with 0 even if secrets are found, but might error for other reasons.
+        if result.returncode != 0:
+            logger.error(f"Trufflehog command failed with exit code {result.returncode}: {result.stderr}")
+            # Check if it's the update error we saw
+            if "cannot move binary" in result.stderr:
+                logger.warning("Trufflehog update failed, but continuing with scan...")
+            else:
+                # Return error finding instead of empty list
+                return [{
+                    "type": "tool_error", 
+                    "file": "N/A",
+                    "line": None,
+                    "raw": f"Trufflehog error: {result.stderr[:200]}",
+                }]
+    
+        findings = []
+        for line in result.stdout.strip().split('\n'):
+            if not line:
+                continue
+            try:
+                secret = json.loads(line)
+                finding = {
+                    "type": secret.get("DetectorName", "Unknown"),
+                    "file": extract_file_path(secret),
+                    "line": extract_line_number(secret),
+                    "raw": secret.get("Raw", ""),
+                }
+                findings.append(finding)
+            except json.JSONDecodeError:
+                logger.warning(f"Could not parse a line from trufflehog output: {line}")
+    
+        return findings
+        
+    except Exception as e:
+        logger.error(f"Exception running trufflehog: {str(e)}", exc_info=True)
+        return [{
+            "type": "tool_error",
+            "file": "N/A", 
+            "line": None,
+            "raw": f"Error running trufflehog: {str(e)}",
+        }]
 
 
 def extract_file_path(secret: Dict[str, Any]) -> str:
