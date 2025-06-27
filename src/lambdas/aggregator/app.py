@@ -22,9 +22,9 @@ secrets_manager = boto3.client("secretsmanager")
 dynamodb = boto3.resource("dynamodb")
 
 # Constants
-COMMENT_MAX_SECRETS = 5
-COMMENT_MAX_VULNERABILITIES = 5
-COMMENT_MAX_AI_SUGGESTIONS = 6
+COMMENT_MAX_SECRETS = 10
+COMMENT_MAX_VULNERABILITIES = 10
+# Removed COMMENT_MAX_AI_SUGGESTIONS - now using collapsible sections for all suggestions
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -176,22 +176,40 @@ def format_header() -> str:
 
 
 def format_summary_table(secrets_count: int, vulns_count: int, ai_count: int) -> str:
-    """Format the summary table section."""
-    secrets_icon = "🔴" if secrets_count > 0 else "✅"
-    vulns_icon = "🟡" if vulns_count > 0 else "✅"
-    ai_icon = "💡" if ai_count > 0 else "✅"
+    """Format the summary table section - Enhanced to match README example."""
+    # Determine status for each scanner
+    if secrets_count > 0:
+        secrets_icon = "🔴"
+        secrets_status = "**Action Required**"
+    else:
+        secrets_icon = "✅"
+        secrets_status = "Clean"
+    
+    if vulns_count > 0:
+        vulns_icon = "🟡"
+        vulns_status = "**Review Needed**"
+    else:
+        vulns_icon = "✅"
+        vulns_status = "Clean"
+    
+    if ai_count > 0:
+        ai_icon = "💡"
+        ai_status = "**Improvements Available**"
+    else:
+        ai_icon = "✅"
+        ai_status = "Good Quality"
     
     return f"""
 ### 📊 Summary
 | Scanner | Status | Findings |
 |:---|:---:|:---|
-| {secrets_icon} Secret Scanner | {'**Action Required**' if secrets_count > 0 else 'Clean'} | {secrets_count} secrets found |
-| {vulns_icon} Vulnerability Scanner | {'**Review Needed**' if vulns_count > 0 else 'Clean'} | {vulns_count} vulnerabilities found |
-| {ai_icon} AI Code Review | {'**Improvements Available**' if ai_count > 0 else 'Good Quality'} | {ai_count} suggestions |"""
+| {secrets_icon} Secret Scanner | {secrets_status} | {secrets_count} secrets found |
+| {vulns_icon} Vulnerability Scanner | {vulns_status} | {vulns_count} vulnerabilities found |
+| {ai_icon} AI Code Review | {ai_status} | {ai_count} suggestions |"""
 
 
 def format_secrets_section(secrets: List[Dict[str, Any]], total_count: int) -> str:
-    """Format the secrets findings section."""
+    """Format the secrets findings section - Enhanced with better formatting."""
     section = "\n### 🔴 Critical: Hardcoded Secrets Detected\n"
     section += "**Immediate action required:** Remove these secrets and rotate them.\n\n"
     
@@ -199,22 +217,30 @@ def format_secrets_section(secrets: List[Dict[str, Any]], total_count: int) -> s
         secret_type = secret.get('type', 'Secret')
         file_path = secret.get('file', 'unknown')
         line_num = secret.get('line', '?')
+        # Format exactly like README example
         section += f"{i}. **{secret_type}** found in `{file_path}` at line `{line_num}`\n"
     
     if total_count > COMMENT_MAX_SECRETS:
-        section += f"\n*... and {total_count - COMMENT_MAX_SECRETS} more secrets found.*\n"
+        # Use collapsible section for remaining secrets
+        section += f"\n<details>\n<summary>... and {total_count - COMMENT_MAX_SECRETS} more secrets found</summary>\n\n"
+        for i, secret in enumerate(secrets[COMMENT_MAX_SECRETS:], COMMENT_MAX_SECRETS + 1):
+            secret_type = secret.get('type', 'Secret')
+            file_path = secret.get('file', 'unknown')
+            line_num = secret.get('line', '?')
+            section += f"{i}. **{secret_type}** found in `{file_path}` at line `{line_num}`\n"
+        section += "\n</details>\n"
     
     return section
 
 
 def format_vulnerabilities_section(vulnerabilities: List[Dict[str, Any]], total_count: int) -> str:
-    """Format the vulnerabilities findings section."""
+    """Format the vulnerabilities findings section - Enhanced formatting."""
     section = "\n### 🟡 Dependency Vulnerabilities Detected\n"
     section += "**Action needed:** Update the following packages to their secure versions.\n\n"
     
     for i, vuln in enumerate(vulnerabilities[:COMMENT_MAX_VULNERABILITIES], 1):
         severity = vuln.get('severity', 'UNKNOWN')
-        severity_emoji = "🔴" if severity == 'HIGH' else "🟡"
+        severity_emoji = "🔴" if severity in ['HIGH', 'CRITICAL'] else "🟡"
         
         package = vuln.get('package', 'unknown')
         installed_version = vuln.get('installed_version', vuln.get('version', '?'))
@@ -226,13 +252,27 @@ def format_vulnerabilities_section(vulnerabilities: List[Dict[str, Any]], total_
         section += f"   - {vulnerability}: {description}\n"
     
     if total_count > COMMENT_MAX_VULNERABILITIES:
-        section += f"\n*... and {total_count - COMMENT_MAX_VULNERABILITIES} more vulnerabilities found.*\n"
+        # Use collapsible section for remaining vulnerabilities
+        section += f"\n<details>\n<summary>... and {total_count - COMMENT_MAX_VULNERABILITIES} more vulnerabilities found</summary>\n\n"
+        for i, vuln in enumerate(vulnerabilities[COMMENT_MAX_VULNERABILITIES:], COMMENT_MAX_VULNERABILITIES + 1):
+            severity = vuln.get('severity', 'UNKNOWN')
+            severity_emoji = "🔴" if severity in ['HIGH', 'CRITICAL'] else "🟡"
+            
+            package = vuln.get('package', 'unknown')
+            installed_version = vuln.get('installed_version', vuln.get('version', '?'))
+            fixed_version = vuln.get('fixed_version', '?')
+            vulnerability = vuln.get('vulnerability', vuln.get('vulnerability_id', 'Unknown CVE'))
+            description = vuln.get('description', 'No description')
+            
+            section += f"{i}. {severity_emoji} **{package}** `{installed_version}` → `{fixed_version}`\n"
+            section += f"   - {vulnerability}: {description}\n"
+        section += "\n</details>\n"
     
     return section
 
 
 def format_ai_suggestions_section(suggestions: List[Dict[str, Any]], total_count: int) -> str:
-    """Format the AI suggestions section."""
+    """Format the AI suggestions section - Now with collapsible details for all suggestions."""
     section = "\n### 💡 AI Code Review Suggestions\n"
     section += "**Recommendations to improve code quality:**\n\n"
     
@@ -241,23 +281,49 @@ def format_ai_suggestions_section(suggestions: List[Dict[str, Any]], total_count
     medium_priority = [s for s in suggestions if s.get('priority') == 'medium']
     low_priority = [s for s in suggestions if s.get('priority') == 'low']
     
-    suggestions_shown = 0
-    
+    # Show high priority suggestions directly (first 3-5)
     if high_priority:
         section += "#### 🔴 High Priority\n"
         for suggestion in high_priority[:3]:
             section += format_single_ai_suggestion(suggestion)
-            suggestions_shown += 1
     
-    if medium_priority and suggestions_shown < COMMENT_MAX_AI_SUGGESTIONS:
-        section += "#### 🟡 Medium Priority\n"
-        remaining_slots = COMMENT_MAX_AI_SUGGESTIONS - suggestions_shown
+    # Show some medium priority if room
+    shown_count = min(3, len(high_priority))
+    if medium_priority and shown_count < 5:
+        section += "\n#### 🟡 Medium Priority\n"
+        remaining_slots = 5 - shown_count
         for suggestion in medium_priority[:remaining_slots]:
             section += format_single_ai_suggestion(suggestion)
-            suggestions_shown += 1
+        shown_count += min(remaining_slots, len(medium_priority))
     
-    if total_count > suggestions_shown:
-        section += f"*... and {total_count - suggestions_shown} more suggestions available.*\n"
+    # Calculate remaining suggestions
+    remaining_high = high_priority[3:] if len(high_priority) > 3 else []
+    remaining_medium = medium_priority[max(0, 5-len(high_priority[:3])):] if medium_priority else []
+    remaining_suggestions = remaining_high + remaining_medium + low_priority
+    
+    # Put remaining in collapsible section
+    if remaining_suggestions:
+        section += f"\n<details>\n<summary><strong>... and {len(remaining_suggestions)} more suggestions available</strong> (click to expand)</summary>\n\n"
+        
+        # Add remaining high priority
+        if remaining_high:
+            section += "#### 🔴 High Priority (continued)\n"
+            for suggestion in remaining_high:
+                section += format_single_ai_suggestion(suggestion)
+        
+        # Add remaining medium priority
+        if remaining_medium:
+            section += "\n#### 🟡 Medium Priority" + (" (continued)" if shown_count > len(high_priority) else "") + "\n"
+            for suggestion in remaining_medium:
+                section += format_single_ai_suggestion(suggestion)
+        
+        # Add low priority
+        if low_priority:
+            section += "\n#### 🟢 Low Priority\n"
+            for suggestion in low_priority:
+                section += format_single_ai_suggestion(suggestion)
+        
+        section += "\n</details>\n"
     
     return section
 
