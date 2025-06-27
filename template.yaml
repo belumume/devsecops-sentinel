@@ -115,6 +115,7 @@ Resources:
       Environment:
         Variables:
           GITHUB_TOKEN_SECRET_NAME: "DevSecOpsSentinel/GitHubToken"
+          PATH: "/opt/bin:/usr/local/bin:/usr/bin:/bin"
 
   VulnerabilityScannerFunction:
     Type: AWS::Serverless::Function
@@ -133,6 +134,7 @@ Resources:
       Environment:
         Variables:
           GITHUB_TOKEN_SECRET_NAME: "DevSecOpsSentinel/GitHubToken"
+          PATH: "/opt/bin:/usr/local/bin:/usr/bin:/bin"
 
   AIReviewerFunction:
     Type: AWS::Serverless::Function

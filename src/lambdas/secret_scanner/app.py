@@ -41,6 +41,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         Standardized response with findings
     """
     logger.info("SecretScannerFunction invoked - REAL scanning with trufflehog")
+    # Updated with PATH fix for scanner binaries
     
     try:
         repo_details = event.get("repo_details", {})
