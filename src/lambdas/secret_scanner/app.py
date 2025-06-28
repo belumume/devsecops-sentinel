@@ -11,6 +11,10 @@ import shutil
 import boto3
 import requests
 
+# Add layer bin directory to PATH for Lambda layer tools
+if '/opt/bin' not in os.environ.get('PATH', ''):
+    os.environ['PATH'] = '/opt/bin:' + os.environ.get('PATH', '')
+
 from sentinel_utils.utils import (
     get_github_token, 
     create_session_with_retries,
@@ -137,10 +141,10 @@ def scan_repository(zip_url: str, headers: Dict[str, str]) -> List[Dict[str, Any
 def run_trufflehog_scan(repo_path: str) -> List[Dict[str, Any]]:
     """
     Runs the trufflehog scanner on the given repository path and parses the output.
-    
+
     Args:
         repo_path: Path to the repository to scan
-        
+
     Returns:
         List of secret findings
     """
@@ -154,23 +158,57 @@ def run_trufflehog_scan(repo_path: str) -> List[Dict[str, Any]]:
             "line": None,
             "raw": "Trufflehog scanner not available - secrets not checked",
         }]
-    
+
     # Check if git is available (sometimes needed by trufflehog)
     git_cmd = find_tool(GIT_PATHS)
     if git_cmd:
         logger.info(f"Git found at: {git_cmd}")
-    
+
     logger.info(f"Running trufflehog from {trufflehog_cmd} on {repo_path}")
-    
+
+    # Log directory contents for debugging
+    try:
+        import os
+        logger.info(f"Repository path contents: {os.listdir(repo_path)}")
+        for root, dirs, files in os.walk(repo_path):
+            for file in files[:10]:  # Limit to first 10 files to avoid spam
+                file_path = os.path.join(root, file)
+                logger.info(f"Found file: {file_path}")
+    except Exception as e:
+        logger.warning(f"Could not list repository contents: {e}")
+
     # Set PATH to include tool directories
     env = os.environ.copy()
     env['PATH'] = '/opt/bin:/usr/local/bin:/usr/bin:/bin:' + env.get('PATH', '')
-    
-    command = [trufflehog_cmd, "filesystem", repo_path, "--json", "--no-update"]
-    
+
+    # Enhanced trufflehog command with more options for better detection
+    command = [
+        trufflehog_cmd,
+        "filesystem",
+        repo_path,
+        "--json",
+        "--no-update",
+        "--no-verification",  # Skip verification to catch more potential secrets
+        "--include-detectors=all"  # Include all detectors
+    ]
+
     try:
-        result = subprocess.run(command, capture_output=True, text=True, check=False, env=env)
-        
+        logger.info(f"Executing command: {' '.join(command)}")
+        result = subprocess.run(command, capture_output=True, text=True, check=False, env=env, timeout=120)
+
+        # Log the raw output for debugging
+        logger.info(f"Trufflehog return code: {result.returncode}")
+        logger.info(f"Trufflehog stdout length: {len(result.stdout)} characters")
+        logger.info(f"Trufflehog stderr: {result.stderr}")
+
+        # Log first few lines of stdout for debugging (without exposing secrets)
+        if result.stdout:
+            lines = result.stdout.strip().split('\n')
+            logger.info(f"Trufflehog found {len([l for l in lines if l.strip()])} output lines")
+            for i, line in enumerate(lines[:3]):  # Log first 3 lines only
+                if line.strip():
+                    logger.info(f"Sample output line {i+1}: {line[:100]}...")
+
         # Trufflehog exits with 0 even if secrets are found, but might error for other reasons.
         if result.returncode != 0:
             logger.error(f"Trufflehog command failed with exit code {result.returncode}: {result.stderr}")
@@ -180,15 +218,15 @@ def run_trufflehog_scan(repo_path: str) -> List[Dict[str, Any]]:
             else:
                 # Return error finding instead of empty list
                 return [{
-                    "type": "tool_error", 
+                    "type": "tool_error",
                     "file": "N/A",
                     "line": None,
                     "raw": f"Trufflehog error: {result.stderr[:200]}",
                 }]
-    
+
         findings = []
         for line in result.stdout.strip().split('\n'):
-            if not line:
+            if not line.strip():
                 continue
             try:
                 secret = json.loads(line)
@@ -199,16 +237,32 @@ def run_trufflehog_scan(repo_path: str) -> List[Dict[str, Any]]:
                     "raw": secret.get("Raw", ""),
                 }
                 findings.append(finding)
+                logger.info(f"Found secret: {finding['type']} in {finding['file']}:{finding['line']}")
             except json.JSONDecodeError:
-                logger.warning(f"Could not parse a line from trufflehog output: {line}")
-    
+                logger.warning(f"Could not parse a line from trufflehog output: {line[:100]}...")
+
+        # If trufflehog didn't find anything, try fallback pattern matching
+        if not findings:
+            logger.info("Trufflehog found no secrets, trying fallback pattern detection...")
+            fallback_findings = run_fallback_secret_detection(repo_path)
+            findings.extend(fallback_findings)
+
+        logger.info(f"Total secrets found: {len(findings)}")
         return findings
-        
+
+    except subprocess.TimeoutExpired:
+        logger.error("Trufflehog scan timed out after 120 seconds")
+        return [{
+            "type": "tool_error",
+            "file": "N/A",
+            "line": None,
+            "raw": "Trufflehog scan timed out - scan incomplete",
+        }]
     except Exception as e:
         logger.error(f"Exception running trufflehog: {str(e)}", exc_info=True)
         return [{
             "type": "tool_error",
-            "file": "N/A", 
+            "file": "N/A",
             "line": None,
             "raw": f"Error running trufflehog: {str(e)}",
         }]
@@ -229,3 +283,101 @@ def extract_line_number(secret: Dict[str, Any]) -> Optional[int]:
         return int(line) if line is not None else None
     except (AttributeError, TypeError, ValueError):
         return None
+
+
+def run_fallback_secret_detection(repo_path: str) -> List[Dict[str, Any]]:
+    """
+    Fallback secret detection using regex patterns when trufflehog doesn't find anything.
+    This helps catch secrets that might not match trufflehog's exact patterns.
+
+    Args:
+        repo_path: Path to the repository to scan
+
+    Returns:
+        List of secret findings from pattern matching
+    """
+    import re
+
+    findings = []
+
+    # Common secret patterns
+    secret_patterns = [
+        # API Keys
+        (r'(?i)(api[_-]?key|apikey)\s*[=:]\s*["\']?([a-zA-Z0-9_\-]{20,})["\']?', 'API Key'),
+        (r'(?i)(secret[_-]?key|secretkey)\s*[=:]\s*["\']?([a-zA-Z0-9_\-]{20,})["\']?', 'Secret Key'),
+
+        # GitHub tokens
+        (r'ghp_[a-zA-Z0-9]{36}', 'GitHub Token'),
+        (r'github_pat_[a-zA-Z0-9_]{82}', 'GitHub Token'),
+
+        # AWS keys
+        (r'AKIA[0-9A-Z]{16}', 'AWS Access Key'),
+        (r'(?i)(aws[_-]?secret[_-]?access[_-]?key)\s*[=:]\s*["\']?([a-zA-Z0-9/+=]{40})["\']?', 'AWS Secret Key'),
+
+        # Database passwords
+        (r'(?i)(password|passwd|pwd)\s*[=:]\s*["\']?([^"\'\s]{8,})["\']?', 'Database Password'),
+        (r'(?i)(db[_-]?password|database[_-]?password)\s*[=:]\s*["\']?([^"\'\s]{8,})["\']?', 'Database Password'),
+
+        # JWT secrets
+        (r'(?i)(jwt[_-]?secret|jwt[_-]?key)\s*[=:]\s*["\']?([a-zA-Z0-9_\-]{20,})["\']?', 'JWT Secret'),
+
+        # OpenAI API keys
+        (r'sk-[a-zA-Z0-9]{48}', 'OpenAI API Key'),
+
+        # SendGrid API keys
+        (r'SG\.[a-zA-Z0-9_\-]{22}\.[a-zA-Z0-9_\-]{43}', 'SendGrid API Key'),
+
+        # Stripe keys
+        (r'sk_test_[a-zA-Z0-9]{24}', 'Stripe Test Key'),
+        (r'sk_live_[a-zA-Z0-9]{24}', 'Stripe Live Key'),
+
+        # Connection strings
+        (r'(?i)(connection[_-]?string|conn[_-]?str)\s*[=:]\s*["\']?([^"\'\s]{20,})["\']?', 'Connection String'),
+    ]
+
+    try:
+        for root, dirs, files in os.walk(repo_path):
+            for file in files:
+                # Skip binary files and common non-source files
+                if file.endswith(('.pyc', '.jpg', '.png', '.gif', '.pdf', '.zip', '.tar', '.gz')):
+                    continue
+
+                file_path = os.path.join(root, file)
+                relative_path = os.path.relpath(file_path, repo_path)
+
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                        lines = content.split('\n')
+
+                        for line_num, line in enumerate(lines, 1):
+                            for pattern, secret_type in secret_patterns:
+                                matches = re.finditer(pattern, line)
+                                for match in matches:
+                                    # Extract the secret value (usually the second group if it exists)
+                                    secret_value = match.group(2) if match.groups() and len(match.groups()) > 1 else match.group(0)
+
+                                    # Skip very short matches or common false positives
+                                    if len(secret_value) < 8:
+                                        continue
+                                    if secret_value.lower() in ['password', 'secret', 'key', 'token', 'example', 'placeholder']:
+                                        continue
+
+                                    finding = {
+                                        "type": f"{secret_type} (Pattern Match)",
+                                        "file": relative_path,
+                                        "line": line_num,
+                                        "raw": secret_value[:50] + "..." if len(secret_value) > 50 else secret_value,
+                                    }
+                                    findings.append(finding)
+                                    logger.info(f"Fallback detection found {secret_type} in {relative_path}:{line_num}")
+
+                except Exception as e:
+                    logger.warning(f"Could not scan file {file_path}: {e}")
+                    continue
+
+    except Exception as e:
+        logger.error(f"Error in fallback secret detection: {e}", exc_info=True)
+
+    logger.info(f"Fallback detection found {len(findings)} potential secrets")
+    return findings

@@ -116,15 +116,18 @@ def aggregate_scan_results(scan_results: List[Dict[str, Any]]) -> Dict[str, List
             # Separate tool_error findings from actual findings
             tool_errors = [f for f in findings if f.get('type') == 'tool_error']
             actual_findings = [f for f in findings if f.get('type') != 'tool_error']
-            
+
             if tool_errors:
                 aggregated['tool_errors'].extend(tool_errors)
                 logger.warning(f"{scanner_type} scanner reported {len(tool_errors)} tool errors")
-            
+
             if scanner_type == 'secrets':
                 aggregated['secrets'].extend(actual_findings)
             elif scanner_type == 'vulnerabilities':
-                aggregated['vulnerabilities'].extend(actual_findings)
+                # Handle both 'vulnerability' and 'dependency_vulnerability' types
+                vuln_findings = [f for f in actual_findings if f.get('type') in ['vulnerability', 'dependency_vulnerability']]
+                aggregated['vulnerabilities'].extend(vuln_findings)
+                logger.info(f"Added {len(vuln_findings)} vulnerability findings")
             elif scanner_type == 'ai_review':
                 aggregated['ai_suggestions'].extend(actual_findings)
             

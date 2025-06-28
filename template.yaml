@@ -104,8 +104,8 @@ Resources:
       CodeUri: src/lambdas/secret_scanner/
       Handler: app.lambda_handler
       Layers:
-        - !Ref SentinelUtilsLayer
-        - !If [HasScannerLayer, !Ref ScannerLayerArn, !Ref "AWS::NoValue"]
+        - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOps-Scanner-Layer:1
+        - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOpsSentinel-Final:3
       Policies:
         - Statement:
           - Effect: Allow
@@ -123,8 +123,8 @@ Resources:
       CodeUri: src/lambdas/vulnerability_scanner/
       Handler: app.lambda_handler
       Layers:
-        - !Ref SentinelUtilsLayer
-        - !If [HasScannerLayer, !Ref ScannerLayerArn, !Ref "AWS::NoValue"]
+        - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOps-Scanner-Layer:1
+        - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOpsSentinel-Final:3
       Policies:
         - Statement:
           - Effect: Allow
@@ -142,8 +142,8 @@ Resources:
       CodeUri: src/lambdas/ai_reviewer/
       Handler: app.lambda_handler
       Layers:
-        - !Ref SentinelUtilsLayer
-        - !If [HasScannerLayer, !Ref ScannerLayerArn, !Ref "AWS::NoValue"]
+        - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOps-Scanner-Layer:1
+        - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOpsSentinel-Final:3
       Policies:
         - Statement:
           - Effect: Allow

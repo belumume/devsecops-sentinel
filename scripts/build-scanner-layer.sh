@@ -16,7 +16,7 @@ LAYER_DIR="./scanner-layer"
 echo "Creating temporary directory for layer contents..."
 rm -rf "${LAYER_DIR}"
 mkdir -p "${LAYER_DIR}/bin"
-mkdir -p "${LAYER_DIR}/python/lib/python3.11/site-packages"
+mkdir -p "${LAYER_DIR}/python/lib/python3.9/site-packages"
 
 # --- Build with Amazon Linux 2023 Docker container ---
 echo "Building layer using Amazon Linux 2023 container..."
@@ -31,14 +31,26 @@ yum install -y git zip python3-pip nodejs tar
 # Install trufflehog
 curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/bin
 
-# Install Python dependencies
-pip3 install safety -t /layer/python/lib/python3.11/site-packages
+# Install Python dependencies for Python 3.9 (Lambda runtime)
+pip3 install safety -t /layer/python/lib/python3.9/site-packages
 
 # Copy binaries to the layer's bin directory
 cp /usr/bin/git /layer/bin/
 cp /usr/bin/trufflehog /layer/bin/
 cp /usr/bin/node /layer/bin/
 cp /usr/bin/npm /layer/bin/
+
+# Also create a safety executable script since pip installs it as a module
+cat > /layer/bin/safety << 'EOF'
+#!/usr/bin/env python3
+import sys
+import os
+sys.path.insert(0, '/opt/python/lib/python3.9/site-packages')
+from safety.cli import cli
+if __name__ == '__main__':
+    cli()
+EOF
+chmod +x /layer/bin/safety
 
 # Zip the layer contents
 cd /layer
