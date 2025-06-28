@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""
+Deploy script for the secret scanner Lambda function.
+"""
+
+import os
+import shutil
+import subprocess
+import tempfile
+import zipfile
+from pathlib import Path
+
+def create_lambda_package():
+    """Create a deployment package for the secret scanner."""
+    
+    # Create temporary directory for packaging
+    with tempfile.TemporaryDirectory() as temp_dir:
+        package_dir = os.path.join(temp_dir, 'package')
+        os.makedirs(package_dir)
+        
+        # Copy the Lambda function code
+        source_dir = 'src/lambdas/secret_scanner'
+        shutil.copy2(os.path.join(source_dir, 'app.py'), package_dir)
+        
+        # Copy sentinel_utils if it exists
+        utils_source = 'sentinel_utils'
+        if os.path.exists(utils_source):
+            utils_dest = os.path.join(package_dir, 'sentinel_utils')
+            shutil.copytree(utils_source, utils_dest)
+        
+        # Create zip file
+        zip_path = 'secret_scanner_deployment.zip'
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(package_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, package_dir)
+                    zipf.write(file_path, arcname)
+        
+        print(f"Created deployment package: {zip_path}")
+        return zip_path
+
+def deploy_function(zip_path):
+    """Deploy the Lambda function using AWS CLI."""
+    
+    function_name = "devsecops-sentinel-SecretScannerFunction-w0XQI2GV65HU"
+    region = "us-east-1"
+    
+    cmd = [
+        "aws", "lambda", "update-function-code",
+        "--function-name", function_name,
+        "--zip-file", f"fileb://{zip_path}",
+        "--region", region
+    ]
+    
+    print(f"Deploying function: {function_name}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    
+    if result.returncode == 0:
+        print("✅ Function deployed successfully!")
+        print(result.stdout)
+    else:
+        print("❌ Deployment failed!")
+        print(result.stderr)
+        return False
+    
+    return True
+
+def main():
+    """Main deployment function."""
+    print("🚀 Deploying Secret Scanner Lambda Function")
+    
+    # Create deployment package
+    zip_path = create_lambda_package()
+    
+    # Deploy function
+    success = deploy_function(zip_path)
+    
+    # Cleanup
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+        print(f"Cleaned up: {zip_path}")
+    
+    if success:
+        print("🎉 Deployment completed successfully!")
+    else:
+        print("💥 Deployment failed!")
+        return 1
+    
+    return 0
+
+if __name__ == "__main__":
+    exit(main())

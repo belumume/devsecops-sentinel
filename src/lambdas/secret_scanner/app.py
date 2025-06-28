@@ -241,11 +241,8 @@ def run_trufflehog_scan(repo_path: str) -> List[Dict[str, Any]]:
             except json.JSONDecodeError:
                 logger.warning(f"Could not parse a line from trufflehog output: {line[:100]}...")
 
-        # If trufflehog didn't find anything, try fallback pattern matching
-        if not findings:
-            logger.info("Trufflehog found no secrets, trying fallback pattern detection...")
-            fallback_findings = run_fallback_secret_detection(repo_path)
-            findings.extend(fallback_findings)
+        # Trufflehog is the authoritative tool - no fallback needed
+        # If trufflehog finds nothing, the repository is clean
 
         logger.info(f"Total secrets found: {len(findings)}")
         return findings
@@ -285,99 +282,3 @@ def extract_line_number(secret: Dict[str, Any]) -> Optional[int]:
         return None
 
 
-def run_fallback_secret_detection(repo_path: str) -> List[Dict[str, Any]]:
-    """
-    Fallback secret detection using regex patterns when trufflehog doesn't find anything.
-    This helps catch secrets that might not match trufflehog's exact patterns.
-
-    Args:
-        repo_path: Path to the repository to scan
-
-    Returns:
-        List of secret findings from pattern matching
-    """
-    import re
-
-    findings = []
-
-    # Common secret patterns
-    secret_patterns = [
-        # API Keys
-        (r'(?i)(api[_-]?key|apikey)\s*[=:]\s*["\']?([a-zA-Z0-9_\-]{20,})["\']?', 'API Key'),
-        (r'(?i)(secret[_-]?key|secretkey)\s*[=:]\s*["\']?([a-zA-Z0-9_\-]{20,})["\']?', 'Secret Key'),
-
-        # GitHub tokens
-        (r'ghp_[a-zA-Z0-9]{36}', 'GitHub Token'),
-        (r'github_pat_[a-zA-Z0-9_]{82}', 'GitHub Token'),
-
-        # AWS keys
-        (r'AKIA[0-9A-Z]{16}', 'AWS Access Key'),
-        (r'(?i)(aws[_-]?secret[_-]?access[_-]?key)\s*[=:]\s*["\']?([a-zA-Z0-9/+=]{40})["\']?', 'AWS Secret Key'),
-
-        # Database passwords
-        (r'(?i)(password|passwd|pwd)\s*[=:]\s*["\']?([^"\'\s]{8,})["\']?', 'Database Password'),
-        (r'(?i)(db[_-]?password|database[_-]?password)\s*[=:]\s*["\']?([^"\'\s]{8,})["\']?', 'Database Password'),
-
-        # JWT secrets
-        (r'(?i)(jwt[_-]?secret|jwt[_-]?key)\s*[=:]\s*["\']?([a-zA-Z0-9_\-]{20,})["\']?', 'JWT Secret'),
-
-        # OpenAI API keys
-        (r'sk-[a-zA-Z0-9]{48}', 'OpenAI API Key'),
-
-        # SendGrid API keys
-        (r'SG\.[a-zA-Z0-9_\-]{22}\.[a-zA-Z0-9_\-]{43}', 'SendGrid API Key'),
-
-        # Stripe keys
-        (r'sk_test_[a-zA-Z0-9]{24}', 'Stripe Test Key'),
-        (r'sk_live_[a-zA-Z0-9]{24}', 'Stripe Live Key'),
-
-        # Connection strings
-        (r'(?i)(connection[_-]?string|conn[_-]?str)\s*[=:]\s*["\']?([^"\'\s]{20,})["\']?', 'Connection String'),
-    ]
-
-    try:
-        for root, dirs, files in os.walk(repo_path):
-            for file in files:
-                # Skip binary files and common non-source files
-                if file.endswith(('.pyc', '.jpg', '.png', '.gif', '.pdf', '.zip', '.tar', '.gz')):
-                    continue
-
-                file_path = os.path.join(root, file)
-                relative_path = os.path.relpath(file_path, repo_path)
-
-                try:
-                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()
-                        lines = content.split('\n')
-
-                        for line_num, line in enumerate(lines, 1):
-                            for pattern, secret_type in secret_patterns:
-                                matches = re.finditer(pattern, line)
-                                for match in matches:
-                                    # Extract the secret value (usually the second group if it exists)
-                                    secret_value = match.group(2) if match.groups() and len(match.groups()) > 1 else match.group(0)
-
-                                    # Skip very short matches or common false positives
-                                    if len(secret_value) < 8:
-                                        continue
-                                    if secret_value.lower() in ['password', 'secret', 'key', 'token', 'example', 'placeholder']:
-                                        continue
-
-                                    finding = {
-                                        "type": f"{secret_type} (Pattern Match)",
-                                        "file": relative_path,
-                                        "line": line_num,
-                                        "raw": secret_value[:50] + "..." if len(secret_value) > 50 else secret_value,
-                                    }
-                                    findings.append(finding)
-                                    logger.info(f"Fallback detection found {secret_type} in {relative_path}:{line_num}")
-
-                except Exception as e:
-                    logger.warning(f"Could not scan file {file_path}: {e}")
-                    continue
-
-    except Exception as e:
-        logger.error(f"Error in fallback secret detection: {e}", exc_info=True)
-
-    logger.info(f"Fallback detection found {len(findings)} potential secrets")
-    return findings
