@@ -1,1 +1,1 @@
-{"statusCode": 500, "scanner_type": "secrets", "error": "401 Client Error: Unauthorized for url: https://api.github.com/repos/belumume/sentinel-testbed/zipball/test-vulnerability-scanner-fix", "findings": [], "summary": {"total_findings": 0}}
+{"statusCode": 200, "scanner_type": "secrets", "findings": [], "summary": {"total_findings": 0}}

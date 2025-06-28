@@ -35,14 +35,14 @@ for path in PROFESSIONAL_PATHS:
         os.environ['PATH'] = f"{path}:{os.environ.get('PATH', '')}"
 
 # Self-contained utils to avoid layer conflicts
-def get_github_token():
+def get_github_token_local():
     """Get GitHub token from AWS Secrets Manager."""
     try:
         secrets_client = boto3.client("secretsmanager", region_name='us-east-1')
         secret_name = os.environ.get("GITHUB_TOKEN_SECRET_NAME", "DevSecOpsSentinel/GitHubToken")
         response = secrets_client.get_secret_value(SecretId=secret_name)
-        secret_data = json.loads(response["SecretValue"])
-        return secret_data["github_token"]
+        secret_data = json.loads(response["SecretString"])
+        return secret_data["GITHUB_TOKEN"]
     except Exception as e:
         logger.error(f"Failed to get GitHub token: {e}")
         return ""
@@ -95,6 +95,12 @@ secrets_manager = boto3.client("secretsmanager", region_name='us-east-1')
 SCANNER_TYPE = "secrets"
 SCANNER_VERSION = "4.0-PROFESSIONAL"
 
+# CRITICAL MODULE-LEVEL TEST - This should appear during import
+print("🚨 MODULE IMPORT SUCCESSFUL - CRITICAL TEST MESSAGE")
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.info("🚨 MODULE IMPORT SUCCESSFUL - CRITICAL TEST MESSAGE")
+
 class ConfidenceLevel(Enum):
     """Professional confidence scoring system."""
     CRITICAL = "critical"
@@ -139,11 +145,13 @@ class ProfessionalSecretOrchestrator:
     
     def __init__(self):
         self.session = create_session_with_retries()
-        self.github_token = get_github_token()
+        self.github_token = get_github_token_local()
         self.available_tools = self._discover_professional_tools()
         self.scan_start_time = time.time()
-        
+
         logger.info(f"🎯 Professional Secret Scanner v{SCANNER_VERSION} initialized")
+        logger.info(f"GitHub token length: {len(self.github_token) if self.github_token else 0}")
+        logger.info(f"GitHub token starts with: {self.github_token[:10] if self.github_token else 'None'}...")
         logger.info(f"Available tools: {list(self.available_tools.keys())}")
     
     def _discover_professional_tools(self) -> Dict[str, str]:
@@ -284,7 +292,9 @@ class ProfessionalSecretOrchestrator:
         for finding in findings:
             # Apply professional verification algorithms
             verified_finding = self._verify_finding_professional(finding)
-            if verified_finding.confidence != ConfidenceLevel.LOW:
+            # Include LOW confidence findings for comprehensive detection
+            # Only exclude if verification score is extremely low (< 0.2)
+            if verified_finding.metadata.get("verification_score", 0) >= 0.2:
                 verified_findings.append(verified_finding)
         
         return verified_findings
@@ -763,7 +773,13 @@ class ProfessionalSecretOrchestrator:
             verification_score += 0.2
 
         # Tool reputation verification
-        tool_weights = {"trufflehog": 0.4, "gitleaks": 0.3, "semgrep": 0.2, "entropy_analyzer": 0.1}
+        tool_weights = {
+            "trufflehog": 0.4,
+            "gitleaks": 0.3,
+            "semgrep": 0.2,
+            "semantic": 0.25,  # Give semantic analysis more credit
+            "entropy_analyzer": 0.1
+        }
         verification_score += tool_weights.get(finding.tool, 0.1)
 
         # Update confidence based on verification
@@ -840,15 +856,37 @@ class ProfessionalSecretOrchestrator:
 def lambda_handler(event, context):
     """
     Professional Lambda handler with enterprise-grade error handling.
-    
+
     Args:
         event: Lambda event containing repository details
         context: Lambda context
-        
+
     Returns:
         Professional response with comprehensive findings
     """
-    logger.info(f"🎯 Professional Secret Scanner v{SCANNER_VERSION} - Enterprise Grade - DEPLOYED 2025-06-28")
+    # CRITICAL TEST - This should appear in logs if function executes
+    print("🚨 LAMBDA_HANDLER STARTED - CRITICAL TEST MESSAGE")
+    logger.info("🚨 LAMBDA_HANDLER STARTED - CRITICAL TEST MESSAGE")
+
+    logger.info(f"🎯 Professional Secret Scanner v{SCANNER_VERSION} - Enterprise Grade - FORCED DEPLOY 2025-06-28 15:05")
+
+    # DEBUG: Check what tools are actually available
+    logger.info(f"🔍 PATH environment: {os.environ.get('PATH', 'NOT SET')}")
+    logger.info("🔍 Scanner not initialized yet - will check tools after creation")
+
+    # DEBUG: Check if basic files exist
+    import subprocess
+    try:
+        result = subprocess.run(['ls', '/opt/bin/'], capture_output=True, text=True, timeout=10)
+        logger.info(f"🔍 /opt/bin/ contents: {result.stdout}")
+    except Exception as e:
+        logger.info(f"🔍 Cannot list /opt/bin/: {e}")
+
+    try:
+        result = subprocess.run(['which', 'trufflehog'], capture_output=True, text=True, timeout=10)
+        logger.info(f"🔍 which trufflehog: {result.stdout.strip() if result.stdout else 'NOT FOUND'}")
+    except Exception as e:
+        logger.info(f"🔍 which trufflehog failed: {e}")
     
     try:
         # Extract repository details
@@ -863,7 +901,10 @@ def lambda_handler(event, context):
         
         # Initialize professional orchestrator
         orchestrator = ProfessionalSecretOrchestrator()
-        
+
+        # DEBUG: Check what tools are actually available after scanner creation
+        logger.info(f"🔍 Available tools discovered: {list(orchestrator.available_tools.keys())}")
+
         # Download and scan repository
         findings = orchestrator.scan_repository_professional(zip_url)
         
@@ -876,4 +917,6 @@ def lambda_handler(event, context):
         
     except Exception as e:
         logger.error(f"❌ Professional scanner error: {str(e)}", exc_info=True)
-        return format_error_response(SCANNER_TYPE, e)
+        response = format_error_response(SCANNER_TYPE, e)
+        response["scanner_version"] = f"PROFESSIONAL-v{SCANNER_VERSION}-DEPLOYED-2025-06-28-12:45"
+        return response

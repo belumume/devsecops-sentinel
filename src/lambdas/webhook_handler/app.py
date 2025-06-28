@@ -123,11 +123,16 @@ def extract_pr_details(body: Dict[str, Any]) -> Dict[str, Any]:
     pull_request = body.get("pull_request", {})
     repository = body.get("repository", {})
 
+    # Get the branch/ref for the zipball URL
+    head_ref = pull_request.get("head", {}).get("ref", "main")
+    repo_full_name = repository.get("full_name")
+
     return {
         "pull_request_id": str(pull_request.get("id")),
-        "repository_full_name": repository.get("full_name"),
+        "repository_full_name": repo_full_name,
         "commit_sha": pull_request.get("head", {}).get("sha"),
-        "pr_number": pull_request.get("number")
+        "pr_number": pull_request.get("number"),
+        "zipball_url": f"https://api.github.com/repos/{repo_full_name}/zipball/{head_ref}"
     }
 
 

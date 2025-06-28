@@ -62,7 +62,7 @@ Resources:
               - Effect: "Allow"
                 Action: "lambda:InvokeFunction"
                 Resource: 
-                  - !GetAtt SecretScannerFunction.Arn
+                  - !GetAtt SecretScannerFunctionFixed.Arn
                   - !GetAtt VulnerabilityScannerFunction.Arn
                   - !GetAtt AIReviewerFunction.Arn
                   - !GetAtt AggregatorFunction.Arn
@@ -98,13 +98,13 @@ Resources:
             End: true
       Role: !GetAtt StateMachineRole.Arn
 
-  SecretScannerFunction:
+  SecretScannerFunctionFixed:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/lambdas/secret_scanner/
       Handler: app.lambda_handler
       Layers:
-        - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOps-Scanner-Layer:1
+        - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOps-Scanner-Layer:2
         - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOpsSentinel-Final:3
       Policies:
         - Statement:
@@ -123,7 +123,7 @@ Resources:
       CodeUri: src/lambdas/vulnerability_scanner/
       Handler: app.lambda_handler
       Layers:
-        - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOps-Scanner-Layer:1
+        - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOps-Scanner-Layer:2
         - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOpsSentinel-Final:3
       Policies:
         - Statement:
@@ -142,7 +142,7 @@ Resources:
       CodeUri: src/lambdas/ai_reviewer/
       Handler: app.lambda_handler
       Layers:
-        - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOps-Scanner-Layer:1
+        - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOps-Scanner-Layer:2
         - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOpsSentinel-Final:3
       Policies:
         - Statement:
@@ -198,7 +198,7 @@ Resources:
       Environment:
         Variables:
           STATE_MACHINE_ARN: !Ref AnalysisStateMachine
-          SECRET_SCANNER_FUNCTION_ARN: !GetAtt SecretScannerFunction.Arn
+          SECRET_SCANNER_FUNCTION_ARN: !GetAtt SecretScannerFunctionFixed.Arn
           VULNERABILITY_SCANNER_FUNCTION_ARN: !GetAtt VulnerabilityScannerFunction.Arn
           AI_REVIEWER_FUNCTION_ARN: !GetAtt AIReviewerFunction.Arn
           GITHUB_WEBHOOK_SECRET_NAME: !Ref GitHubWebhookSecretName
