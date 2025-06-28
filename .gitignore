@@ -107,3 +107,6 @@ minimal-scanner-layer/
 # Local testing
 test-output/
 local-test/
+
+#Logs
+past_chat.txt
