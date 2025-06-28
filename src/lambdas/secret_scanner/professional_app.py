@@ -34,52 +34,13 @@ for path in PROFESSIONAL_PATHS:
     if path not in os.environ.get('PATH', ''):
         os.environ['PATH'] = f"{path}:{os.environ.get('PATH', '')}"
 
-# Self-contained utils to avoid layer conflicts
-def get_github_token():
-    """Get GitHub token from AWS Secrets Manager."""
-    try:
-        secrets_client = boto3.client("secretsmanager", region_name='us-east-1')
-        secret_name = os.environ.get("GITHUB_TOKEN_SECRET_NAME", "DevSecOpsSentinel/GitHubToken")
-        response = secrets_client.get_secret_value(SecretId=secret_name)
-        secret_data = json.loads(response["SecretValue"])
-        return secret_data["github_token"]
-    except Exception as e:
-        logger.error(f"Failed to get GitHub token: {e}")
-        return ""
-
-def create_session_with_retries():
-    """Create requests session with retry strategy."""
-    session = requests.Session()
-    retry_strategy = Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[429, 500, 502, 503, 504],
-    )
-    adapter = HTTPAdapter(max_retries=retry_strategy)
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
-    return session
-
-def format_success_response(scanner_type, findings):
-    """Format successful response."""
-    return {
-        "statusCode": 200,
-        "scanner_type": scanner_type,
-        "findings": findings,
-        "summary": {"total_findings": len(findings)}
-    }
-
-def format_error_response(scanner_type, error):
-    """Format error response."""
-    return {
-        "statusCode": 500,
-        "scanner_type": scanner_type,
-        "error": str(error),
-        "findings": [],
-        "summary": {"total_findings": 0}
-    }
-
-DEFAULT_TIMEOUT = 30
+from sentinel_utils.utils import (
+    get_github_token,
+    create_session_with_retries,
+    format_error_response,
+    format_success_response,
+    DEFAULT_TIMEOUT
+)
 
 # Professional logging configuration
 logging.basicConfig(
@@ -139,7 +100,7 @@ class ProfessionalSecretOrchestrator:
     
     def __init__(self):
         self.session = create_session_with_retries()
-        self.github_token = get_github_token()
+        self.github_token = get_github_token(secrets_manager)
         self.available_tools = self._discover_professional_tools()
         self.scan_start_time = time.time()
         
@@ -288,148 +249,6 @@ class ProfessionalSecretOrchestrator:
                 verified_findings.append(verified_finding)
         
         return verified_findings
-
-    def _run_nodejs_dependencies(self, file_path: str) -> List[Dict[str, str]]:
-        """Parse Node.js dependencies."""
-        dependencies = []
-
-        if file_path.endswith("package.json"):
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                try:
-                    data = json.load(f)
-                    for dep_type in ["dependencies", "devDependencies"]:
-                        if dep_type in data:
-                            for name, version in data[dep_type].items():
-                                dependencies.append({"name": name, "version": version.lstrip('^~')})
-                except json.JSONDecodeError:
-                    pass
-
-        return dependencies
-
-    def _run_java_dependencies(self, file_path: str) -> List[Dict[str, str]]:
-        """Parse Java dependencies."""
-        dependencies = []
-
-        if file_path.endswith("pom.xml"):
-            # Basic XML parsing for Maven dependencies
-            try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                    # Simple regex to extract dependencies
-                    import re
-                    pattern = r'<groupId>([^<]+)</groupId>\s*<artifactId>([^<]+)</artifactId>\s*<version>([^<]+)</version>'
-                    matches = re.findall(pattern, content, re.DOTALL)
-                    for group_id, artifact_id, version in matches:
-                        dependencies.append({"name": f"{group_id}:{artifact_id}", "version": version.strip()})
-            except Exception:
-                pass
-
-        return dependencies
-
-    def _run_go_dependencies(self, file_path: str) -> List[Dict[str, str]]:
-        """Parse Go dependencies."""
-        dependencies = []
-
-        if file_path.endswith("go.mod"):
-            try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    for line in f:
-                        line = line.strip()
-                        if line and not line.startswith('//') and ' ' in line:
-                            parts = line.split()
-                            if len(parts) >= 2:
-                                dependencies.append({"name": parts[0], "version": parts[1]})
-            except Exception:
-                pass
-
-        return dependencies
-
-    def _run_rust_dependencies(self, file_path: str) -> List[Dict[str, str]]:
-        """Parse Rust dependencies."""
-        dependencies = []
-
-        if file_path.endswith("Cargo.toml"):
-            try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                    # Simple parsing for [dependencies] section
-                    in_deps = False
-                    for line in content.split('\n'):
-                        line = line.strip()
-                        if line == '[dependencies]':
-                            in_deps = True
-                            continue
-                        elif line.startswith('[') and line != '[dependencies]':
-                            in_deps = False
-                            continue
-
-                        if in_deps and '=' in line and not line.startswith('#'):
-                            name = line.split('=')[0].strip()
-                            version = line.split('=')[1].strip().strip('"\'')
-                            dependencies.append({"name": name, "version": version})
-            except Exception:
-                pass
-
-        return dependencies
-
-    def _run_ruby_dependencies(self, file_path: str) -> List[Dict[str, str]]:
-        """Parse Ruby dependencies."""
-        dependencies = []
-
-        if file_path.endswith("Gemfile"):
-            try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    for line in f:
-                        line = line.strip()
-                        if line.startswith('gem ') and not line.startswith('#'):
-                            # Extract gem name and version
-                            import re
-                            match = re.match(r"gem\s+['\"]([^'\"]+)['\"](?:\s*,\s*['\"]([^'\"]+)['\"])?", line)
-                            if match:
-                                name = match.group(1)
-                                version = match.group(2) if match.group(2) else "*"
-                                dependencies.append({"name": name, "version": version})
-            except Exception:
-                pass
-
-        return dependencies
-
-    def _run_php_dependencies(self, file_path: str) -> List[Dict[str, str]]:
-        """Parse PHP dependencies."""
-        dependencies = []
-
-        if file_path.endswith("composer.json"):
-            try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    data = json.load(f)
-                    for dep_type in ["require", "require-dev"]:
-                        if dep_type in data:
-                            for name, version in data[dep_type].items():
-                                if not name.startswith('php'):  # Skip PHP version constraints
-                                    dependencies.append({"name": name, "version": version})
-            except Exception:
-                pass
-
-        return dependencies
-
-    def _run_dotnet_dependencies(self, file_path: str) -> List[Dict[str, str]]:
-        """Parse .NET dependencies."""
-        dependencies = []
-
-        if file_path.endswith(".csproj"):
-            try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                    # Simple regex to extract PackageReference
-                    import re
-                    pattern = r'<PackageReference\s+Include="([^"]+)"\s+Version="([^"]+)"'
-                    matches = re.findall(pattern, content)
-                    for name, version in matches:
-                        dependencies.append({"name": name, "version": version})
-            except Exception:
-                pass
-
-        return dependencies
 
     def scan_repository_professional(self, zip_url: str) -> List[SecretFinding]:
         """Professional repository scanning with enterprise-grade handling."""
