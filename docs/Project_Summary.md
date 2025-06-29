@@ -12,6 +12,12 @@ DevSecOps Sentinel is a **fully operational**, AI-powered security analysis plat
 
 ## Recent Improvements
 
+### December 30, 2024
+- **Progress Indicator JSON Fix**: Fixed webhook handler to properly parse GitHub token from JSON format
+  - WebhookHandler now correctly extracts token from Secrets Manager JSON response
+  - Progress comments now post immediately when PR is opened
+  - Users see instant feedback instead of waiting in silence
+
 ### December 29, 2024 - Part 2
 - **Progress Indicator**: Added immediate feedback when PR is opened
   - Shows "Analysis in progress..." comment instantly

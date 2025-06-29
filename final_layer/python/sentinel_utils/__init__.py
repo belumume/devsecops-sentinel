@@ -1,1 +1,0 @@
-# DevSecOps Sentinel Utilities Package

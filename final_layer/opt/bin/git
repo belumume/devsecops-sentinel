@@ -1,3 +1,0 @@
-#!/bin/bash
-echo "Git functionality provided by existing layer"
-exit 1
