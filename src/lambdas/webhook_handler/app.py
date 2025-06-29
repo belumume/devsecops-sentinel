@@ -4,7 +4,9 @@ import boto3
 import hmac
 import hashlib
 import logging
+import requests
 from typing import Dict, Any
+from datetime import datetime
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -17,6 +19,72 @@ secrets_manager = boto3.client("secretsmanager")
 # Constants
 SUPPORTED_ACTIONS = ["opened", "reopened", "synchronize"]
 PING_EVENT = "ping"
+
+
+def get_github_token() -> str:
+    """Retrieve GitHub token from Secrets Manager."""
+    secret_name = os.environ.get("GITHUB_TOKEN_SECRET_NAME", "DevSecOpsSentinel/GitHubToken")
+    try:
+        response = secrets_manager.get_secret_value(SecretId=secret_name)
+        return response["SecretString"]
+    except Exception as e:
+        logger.error(f"Failed to retrieve GitHub token: {e}")
+        raise
+
+
+def post_initial_comment(pr_details: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Post an initial 'Analysis in progress' comment to the PR.
+    
+    Args:
+        pr_details: Pull request details
+        
+    Returns:
+        Response from GitHub API including comment ID
+    """
+    try:
+        token = get_github_token()
+        repo_full_name = pr_details.get("repository_full_name")
+        pr_number = pr_details.get("pr_number")
+
+        url = f"https://api.github.com/repos/{repo_full_name}/issues/{pr_number}/comments"
+        
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json",
+            "Content-Type": "application/json"
+        }
+        
+        # Create a progress indicator comment with animated emoji
+        comment_body = """## 🔍 DevSecOps Sentinel Analysis In Progress...
+
+<img src="https://user-images.githubusercontent.com/1701160/196936104-568b301a-9a5f-490e-b626-d32314b7a56f.gif" width="50">
+
+**Your PR is being analyzed for:**
+- 🔴 **Hardcoded Secrets** - Scanning for API keys, passwords, and tokens
+- 🟡 **Vulnerable Dependencies** - Checking for known CVEs in packages
+- 💡 **Code Quality** - AI-powered review for best practices
+
+⏱️ **Estimated time:** 30-60 seconds
+
+---
+*This comment will be updated with the analysis results shortly...*
+"""
+        
+        payload = {"body": comment_body}
+        
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        response.raise_for_status()
+        
+        comment_data = response.json()
+        logger.info(f"Posted initial comment with ID: {comment_data.get('id')}")
+        
+        return comment_data
+
+    except Exception as e:
+        logger.error(f"Failed to post initial comment: {e}")
+        # Don't fail the whole process if comment posting fails
+        return {}
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -59,6 +127,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return success_response(f"Ignoring action: {body.get('action', 'N/A')}")
 
         pr_details = extract_pr_details(body)
+        
+        # Post initial comment to the PR
+        comment_data = post_initial_comment(pr_details)
+        if comment_data.get('id'):
+            pr_details['progress_comment_id'] = comment_data['id']
         
         # Start Step Functions execution
         execution_response = start_step_functions_execution(pr_details)

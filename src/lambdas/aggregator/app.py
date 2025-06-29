@@ -330,10 +330,29 @@ def format_vulnerabilities_section(vulnerabilities: List[Dict[str, Any]], total_
         
         # Determine fixed version (prefer latest if multiple)
         if pkg_info['fixed_versions']:
-            # Sort versions and take the latest
-            fixed_version = sorted(pkg_info['fixed_versions'])[-1]
+            # Filter out non-version strings and sort actual versions
+            actual_versions = []
+            guidance_messages = []
+            
+            for v in pkg_info['fixed_versions']:
+                if v and any(char in v for char in ['.', '-', '+']) and v[0].isdigit():
+                    # Looks like an actual version number
+                    actual_versions.append(v)
+                elif v and ('check' in v.lower() or 'update' in v.lower() or 'latest' in v.lower()):
+                    # It's a guidance message
+                    guidance_messages.append(v)
+            
+            if actual_versions:
+                # Sort and take the latest actual version
+                fixed_version = sorted(actual_versions)[-1]
+            elif guidance_messages:
+                # Use the first guidance message
+                fixed_version = guidance_messages[0]
+            else:
+                # Fallback
+                fixed_version = pkg_info['fixed_versions'][-1]
         else:
-            fixed_version = "?"
+            fixed_version = "check for updates"
         
         section += f"{i}. {severity_emoji} **{pkg_info['package']}** `{pkg_info['version']}` → `{fixed_version}`\n"
         
@@ -357,9 +376,29 @@ def format_vulnerabilities_section(vulnerabilities: List[Dict[str, Any]], total_
             
             # Determine fixed version
             if pkg_info['fixed_versions']:
-                fixed_version = sorted(pkg_info['fixed_versions'])[-1]
+                # Filter out non-version strings and sort actual versions
+                actual_versions = []
+                guidance_messages = []
+                
+                for v in pkg_info['fixed_versions']:
+                    if v and any(char in v for char in ['.', '-', '+']) and v[0].isdigit():
+                        # Looks like an actual version number
+                        actual_versions.append(v)
+                    elif v and ('check' in v.lower() or 'update' in v.lower() or 'latest' in v.lower()):
+                        # It's a guidance message
+                        guidance_messages.append(v)
+                
+                if actual_versions:
+                    # Sort and take the latest actual version
+                    fixed_version = sorted(actual_versions)[-1]
+                elif guidance_messages:
+                    # Use the first guidance message
+                    fixed_version = guidance_messages[0]
+                else:
+                    # Fallback
+                    fixed_version = pkg_info['fixed_versions'][-1]
             else:
-                fixed_version = "?"
+                fixed_version = "check for updates"
             
             section += f"{i}. {severity_emoji} **{pkg_info['package']}** `{pkg_info['version']}` → `{fixed_version}`\n"
             
@@ -499,6 +538,7 @@ def format_footer(repo_details: Dict[str, Any]) -> str:
 def post_github_comment(repo_details: Dict[str, Any], comment_body: str) -> Dict[str, Any]:
     """
     Posts the formatted comment to the GitHub PR using the GitHub REST API.
+    Updates existing comment if progress_comment_id is provided.
     
     Args:
         repo_details: Repository and PR information
@@ -511,12 +551,11 @@ def post_github_comment(repo_details: Dict[str, Any], comment_body: str) -> Dict
         token = get_github_token()
         repo_full_name = repo_details.get("repository_full_name")
         pr_number = repo_details.get("pr_number")
+        progress_comment_id = repo_details.get("progress_comment_id")
 
         if not repo_full_name or not pr_number:
             raise ValueError("Missing repository name or PR number.")
 
-        url = f"https://api.github.com/repos/{repo_full_name}/issues/{pr_number}/comments"
-        
         headers = {
             "Authorization": f"token {token}",
             "Accept": "application/vnd.github.v3+json",
@@ -525,15 +564,24 @@ def post_github_comment(repo_details: Dict[str, Any], comment_body: str) -> Dict
         
         payload = {"body": comment_body}
         
-        logger.info(f"Posting comment to {url}")
-        
         # Use session with retries
         session = create_session_with_retries()
-        response = session.post(url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
+        
+        if progress_comment_id:
+            # Update existing comment
+            url = f"https://api.github.com/repos/{repo_full_name}/issues/comments/{progress_comment_id}"
+            logger.info(f"Updating existing comment {progress_comment_id} at {url}")
+            response = session.patch(url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
+        else:
+            # Create new comment
+            url = f"https://api.github.com/repos/{repo_full_name}/issues/{pr_number}/comments"
+            logger.info(f"Posting new comment to {url}")
+            response = session.post(url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
         
         response.raise_for_status()
         
-        logger.info(f"Successfully posted comment to PR #{pr_number}. Response: {response.status_code}")
+        action = "Updated" if progress_comment_id else "Posted"
+        logger.info(f"Successfully {action} comment to PR #{pr_number}. Response: {response.status_code}")
         return {'success': True, 'response': response.json()}
 
     except requests.exceptions.HTTPError as e:
