@@ -746,8 +746,7 @@ class ProfessionalSecretOrchestrator:
             # Add additional flags to improve detection
             # --only-verified=false includes unverified secrets (test secrets might not verify)
             # --allow-verification-overlap allows multiple detectors to check the same secret
-            # --no-verification completely disables verification (catches more, including test secrets)
-            cmd.extend(["--only-verified=false", "--allow-verification-overlap", "--no-verification"])
+            cmd.extend(["--only-verified=false", "--allow-verification-overlap"])
             
             logger.info(f"🔍 Running TruffleHog command: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=repo_path)
@@ -948,7 +947,7 @@ class ProfessionalSecretOrchestrator:
     def _run_custom_detection(self, repo_path: str) -> List[SecretFinding]:
         """Run custom detection algorithms for comprehensive coverage."""
         findings = []
-        
+
         # Custom detection algorithm 1: Variable name analysis
         var_findings = self._detect_by_variable_names(repo_path)
         findings.extend(var_findings)
@@ -977,17 +976,17 @@ class ProfessionalSecretOrchestrator:
             'private', 'secret', 'key', 'token', 'password', 'pwd', 
             'credential', 'auth', 'api', 'access', 'encryption'
         }
-        
+
         for root, dirs, files in os.walk(repo_path):
             dirs[:] = [d for d in dirs if d not in {'.git', 'node_modules', '__pycache__', '.venv', 'venv'}]
-            
+
             for file in files:
                 if not file.endswith(('.py', '.js', '.java', '.go', '.rb', '.php', '.cs', '.cpp', '.c')):
                     continue
-                    
+
                 file_path = os.path.join(root, file)
                 relative_path = os.path.relpath(file_path, repo_path)
-                
+
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
@@ -1014,9 +1013,9 @@ class ProfessionalSecretOrchestrator:
                                     findings.append(finding)
                 except Exception:
                     continue
-                    
+
         return findings
-    
+
     def _scan_comments_for_secrets(self, repo_path: str) -> List[SecretFinding]:
         """Scan code comments for accidentally included secrets."""
         findings = []
@@ -1086,9 +1085,9 @@ class ProfessionalSecretOrchestrator:
                             findings.append(finding)
                 except Exception:
                     continue
-                    
+
         return findings
-    
+
     def _analyze_config_files(self, repo_path: str) -> List[SecretFinding]:
         """Deep analysis of configuration files for secrets."""
         findings = []
@@ -1104,7 +1103,7 @@ class ProfessionalSecretOrchestrator:
             for file in files:
                 if not any(file.endswith(ext) for ext in config_extensions):
                     continue
-                    
+
                 file_path = os.path.join(root, file)
                 relative_path = os.path.relpath(file_path, repo_path)
                 
@@ -1116,7 +1115,7 @@ class ProfessionalSecretOrchestrator:
                         # Skip comments
                         if line.strip().startswith(('#', ';', '//')):
                             continue
-                            
+
                         # Look for key-value pairs
                         kv_match = re.search(r'([A-Za-z_][A-Za-z0-9_]*)\s*[:=]\s*["\']?([^"\'\n]{8,})["\']?', line)
                         if kv_match:
@@ -1357,6 +1356,12 @@ def lambda_handler(event, context):
                 finding_dict['secret_type'] = finding_dict['secret_type'].value
             if hasattr(finding_dict.get('confidence'), 'value'):
                 finding_dict['confidence'] = finding_dict['confidence'].value
+            
+            # Map field names to match aggregator expectations
+            finding_dict['file'] = finding_dict.get('file_path', 'unknown')
+            finding_dict['line'] = finding_dict.get('line_number', '?')
+            finding_dict['type'] = finding_dict.get('secret_type', 'Secret')
+            
             response_findings.append(finding_dict)
         
         logger.info(f"✅ Professional scan completed: {len(response_findings)} secrets found")
