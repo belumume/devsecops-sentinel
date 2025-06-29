@@ -7,10 +7,6 @@ Parameters:
   GitHubWebhookSecretName:
     Type: String
     Description: The name of the secret in AWS Secrets Manager that holds the GitHub webhook secret.
-  ScannerLayerArn:
-    Type: String
-    Description: The ARN of the Lambda layer containing scanner tools (git, trufflehog, safety, npm)
-    Default: ""
 
 Globals:
   Function:
@@ -19,9 +15,6 @@ Globals:
     Runtime: python3.11
     Architectures:
       - x86_64
-
-Conditions:
-  HasScannerLayer: !Not [!Equals [!Ref ScannerLayerArn, ""]]
 
 Resources:
   SentinelUtilsLayer:
