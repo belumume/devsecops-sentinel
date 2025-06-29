@@ -110,3 +110,9 @@ local-test/
 
 #Logs
 past_chat.txt
+log-events-viewer-result (WebhookHandlerFunction_CloudWatch).csv
+log-events-viewer-result (VulnerabilityScannerFunction_CloudWatch).csv
+log-events-viewer-result (SecretScannerFunctionFixed_CloudWatch).csv
+log-events-viewer-result (AIReviewerFuntion_CloudWatch).csv
+log-events-viewer-result (AggregatorFunction_CloudWatch).csv
+execution-detail (Step Functions).json
