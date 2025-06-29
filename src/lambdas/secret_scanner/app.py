@@ -788,35 +788,60 @@ class ProfessionalSecretOrchestrator:
         return findings
 
     def _run_gitleaks_professional(self, repo_path: str) -> List[SecretFinding]:
-        """Professional GitLeaks execution."""
+        """Professional GitLeaks execution with enhanced configuration."""
         findings = []
+        
+        if "gitleaks" not in self.available_tools:
+            logger.warning("GitLeaks not available, skipping...")
+            return findings
+            
         tool_path = self.available_tools["gitleaks"]
 
         try:
-            cmd = [tool_path, "detect", "--source", repo_path, "--format", "json", "--no-git"]
+            # Use custom config if available, otherwise use default
+            custom_config = "/opt/rules/gitleaks.toml"
+            if os.path.exists(custom_config):
+                cmd = [tool_path, "detect", "--source", repo_path, "--config", custom_config, "-f", "json", "--no-git"]
+            else:
+                cmd = [tool_path, "detect", "--source", repo_path, "-f", "json", "--no-git"]
+                
+            logger.info(f"🔍 Running GitLeaks command: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=repo_path)
+
+            if result.stderr and "no leaks found" not in result.stderr.lower():
+                logger.warning(f"GitLeaks stderr: {result.stderr}")
 
             if result.stdout:
                 try:
+                    # GitLeaks outputs JSON array directly
                     data = json.loads(result.stdout)
-                    for item in data:
-                        finding = SecretFinding(
-                            tool="gitleaks",
-                            secret_type=self._classify_secret_type(item.get("RuleID", "")),
-                            confidence=ConfidenceLevel.HIGH,
-                            file_path=item.get("File", ""),
-                            line_number=item.get("StartLine", 0),
-                            raw_value=item.get("Secret", ""),
-                            masked_value=self._mask_secret(item.get("Secret", "")),
-                            pattern_match=True,
-                            metadata={"rule": item.get("RuleID", ""), "source": "gitleaks"}
-                        )
-                        findings.append(finding)
-                except json.JSONDecodeError:
-                    pass
+                    if isinstance(data, list):
+                        for item in data:
+                            finding = SecretFinding(
+                                tool="gitleaks",
+                                secret_type=self._classify_secret_type(item.get("RuleID", "")),
+                                confidence=ConfidenceLevel.HIGH,
+                                file_path=item.get("File", ""),
+                                line_number=item.get("StartLine", 0),
+                                raw_value=item.get("Secret", ""),
+                                masked_value=self._mask_secret(item.get("Secret", "")),
+                                pattern_match=True,
+                                metadata={
+                                    "rule": item.get("RuleID", ""),
+                                    "source": "gitleaks",
+                                    "commit": item.get("Commit", ""),
+                                    "match": item.get("Match", "")
+                                }
+                            )
+                            findings.append(finding)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse GitLeaks output: {e}")
+                    logger.debug(f"GitLeaks stdout: {result.stdout[:500]}")
 
             logger.info(f"🔍 GitLeaks found {len(findings)} secrets")
 
+        except subprocess.TimeoutExpired:
+            logger.error("GitLeaks execution timed out")
         except Exception as e:
             logger.error(f"❌ GitLeaks execution failed: {e}")
 
