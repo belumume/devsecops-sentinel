@@ -202,9 +202,14 @@ class ProfessionalSecretOrchestrator:
         entropy_findings = self._run_entropy_analysis(repo_path)
         all_findings.extend(entropy_findings)
         
-        # Layer 4: Context-aware semantic analysis
-        semantic_findings = self._run_semantic_analysis(repo_path)
-        all_findings.extend(semantic_findings)
+        # Layer 4: Context-aware semantic analysis (only if no real tools available)
+        if not any(tool in self.available_tools for tool in ["trufflehog", "gitleaks", "semgrep"]):
+            logger.warning("⚠️ No professional tools available - falling back to basic semantic analysis")
+            semantic_findings = self._run_semantic_analysis(repo_path)
+            all_findings.extend(semantic_findings)
+        else:
+            logger.info("✅ Professional tools available - skipping hardcoded semantic fallback")
+            semantic_findings = []
         
         # Professional fusion and deduplication
         final_findings = self._intelligent_fusion(all_findings)
@@ -475,8 +480,25 @@ class ProfessionalSecretOrchestrator:
         tool_path = self.available_tools["trufflehog"]
 
         try:
-            cmd = [tool_path, "--json", "--no-verification", "--no-update", repo_path]
+            # Debug: List files in repo to verify content
+            import os
+            logger.info(f"🔍 Repository path: {repo_path}")
+            for root, dirs, files in os.walk(repo_path):
+                for file in files[:10]:  # Limit to first 10 files
+                    file_path = os.path.join(root, file)
+                    logger.info(f"🔍 Found file: {file_path}")
+
+            # TruffleHog v3+ with all detectors enabled and verification
+            cmd = [tool_path, "filesystem", "--json", "--no-update", "--include-detectors=all", repo_path]
+            logger.info(f"🔍 Running TruffleHog command: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=repo_path)
+
+            # Log TruffleHog output for debugging
+            if result.stderr:
+                logger.warning(f"🔍 TruffleHog stderr: {result.stderr}")
+            if result.stdout:
+                logger.info(f"🔍 TruffleHog stdout length: {len(result.stdout)} chars")
+                logger.info(f"🔍 TruffleHog stdout preview: {result.stdout[:500]}...")
 
             if result.stdout:
                 for line in result.stdout.strip().split('\n'):
@@ -908,8 +930,16 @@ def lambda_handler(event, context):
         # Download and scan repository
         findings = orchestrator.scan_repository_professional(zip_url)
         
-        # Convert findings to response format
-        response_findings = [finding.__dict__ for finding in findings]
+        # Convert findings to response format with proper JSON serialization
+        response_findings = []
+        for finding in findings:
+            finding_dict = finding.__dict__.copy()
+            # Convert enums to strings for JSON serialization
+            if hasattr(finding_dict.get('secret_type'), 'value'):
+                finding_dict['secret_type'] = finding_dict['secret_type'].value
+            if hasattr(finding_dict.get('confidence'), 'value'):
+                finding_dict['confidence'] = finding_dict['confidence'].value
+            response_findings.append(finding_dict)
         
         logger.info(f"✅ Professional scan completed: {len(response_findings)} secrets found")
         
