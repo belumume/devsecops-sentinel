@@ -6,5 +6,8 @@
 		{
 			"path": "../sentinel-testbed"
 		}
-	]
+	],
+	"settings": {
+		"powershell.cwd": "devsecops-sentinel"
+	}
 }
