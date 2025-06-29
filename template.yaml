@@ -209,6 +209,10 @@ Resources:
               Action:
                 - "secretsmanager:GetSecretValue"
               Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubWebhookSecretName}-*"
+            - Effect: Allow
+              Action:
+                - "secretsmanager:GetSecretValue"
+              Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:DevSecOpsSentinel/GitHubToken-*"
       Environment:
         Variables:
           STATE_MACHINE_ARN: !Ref AnalysisStateMachine
@@ -216,6 +220,7 @@ Resources:
           VULNERABILITY_SCANNER_FUNCTION_ARN: !GetAtt VulnerabilityScannerFunction.Arn
           AI_REVIEWER_FUNCTION_ARN: !GetAtt AIReviewerFunction.Arn
           GITHUB_WEBHOOK_SECRET_NAME: !Ref GitHubWebhookSecretName
+          GITHUB_TOKEN_SECRET_NAME: "DevSecOpsSentinel/GitHubToken"
       Events:
         WebhookEvent:
           Type: Api
