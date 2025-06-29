@@ -405,6 +405,24 @@ class ProfessionalSecretOrchestrator:
             r'"private_key":\s*"(-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----[\s\S]+?-----END\s+(?:RSA\s+)?PRIVATE\s+KEY-----)"',
         ]
         
+        # Add Docker ENV and general environment variable patterns
+        patterns['env_variables'] = [
+            # Docker ENV syntax
+            r'ENV\s+([A-Z_]+(?:KEY|TOKEN|SECRET|PASSWORD|API)[A-Z_]*)\s*=\s*([^\s]+)',
+            # Shell export syntax
+            r'export\s+([A-Z_]+(?:KEY|TOKEN|SECRET|PASSWORD|API)[A-Z_]*)\s*=\s*["\']?([^"\'\s]+)["\']?',
+            # General ENV patterns with common prefixes
+            r'(OPENAI|SENDGRID|STRIPE|GITHUB|GITLAB|SLACK|DISCORD|TELEGRAM|TWILIO|AWS|AZURE|GCP)_API_KEY\s*=\s*["\']?([A-Za-z0-9_\-\.]+)["\']?',
+            # JWT patterns
+            r'JWT[_-]?SECRET\s*=\s*["\']?([A-Za-z0-9_\-\.]+)["\']?',
+            # Generic API key patterns in ENV format
+            r'([A-Z_]*API[_-]?KEY)\s*=\s*["\']?([A-Za-z0-9_\-]{16,})["\']?',
+            # sk_ prefixed keys (common for test/live API keys)
+            r'=\s*["\']?(sk_(?:test_|live_)?[A-Za-z0-9]{24,})["\']?',
+            # SG. prefixed keys (SendGrid)
+            r'=\s*["\']?(SG\.[A-Za-z0-9_\-]{22,}\.[A-Za-z0-9_\-]{22,})["\']?'
+        ]
+        
         patterns['database_urls'] = [
             # Database connection strings with credentials
             r'(?:mysql|postgresql|postgres|mongodb)://([^:]+):([^@]+)@[^/\s]+',
@@ -434,11 +452,27 @@ class ProfessionalSecretOrchestrator:
                 for pattern in pattern_list:
                     matches = re.finditer(pattern, line, re.IGNORECASE)
                     for match in matches:
-                        secret_value = match.group(1)
+                        # Handle patterns with multiple capture groups
+                        if match.groups():
+                            # For ENV patterns with 2 groups (key, value), use the last group as secret
+                            if len(match.groups()) >= 2 and match.group(2):
+                                secret_value = match.group(2)
+                                key_name = match.group(1) if len(match.groups()) >= 1 else ""
+                            else:
+                                secret_value = match.group(1)
+                                key_name = ""
+                        else:
+                            secret_value = match.group(0)
+                            key_name = ""
 
+                        # Skip empty values
+                        if not secret_value or len(secret_value.strip()) < 8:
+                            continue
+
+                        # Create finding with initial type classification
                         finding = SecretFinding(
                             tool="semantic_analyzer",
-                            secret_type=self._classify_secret_type(secret_type),
+                            secret_type=SecretType.UNKNOWN,  # Will be updated below
                             confidence=ConfidenceLevel.MEDIUM,
                             file_path=file_path,
                             line_number=line_num,
@@ -446,8 +480,10 @@ class ProfessionalSecretOrchestrator:
                             masked_value=self._mask_secret(secret_value),
                             context=line.strip(),
                             pattern_match=True,
-                            metadata={"pattern_type": secret_type, "source": "semantic"}
+                            metadata={"pattern_type": secret_type, "source": "semantic", "key_name": key_name}
                         )
+                        # Now classify with the finding context
+                        finding.secret_type = self._classify_secret_type(secret_type, finding)
                         findings.append(finding)
 
         return findings
@@ -478,15 +514,22 @@ class ProfessionalSecretOrchestrator:
 
     def _are_findings_similar(self, finding1: SecretFinding, finding2: SecretFinding) -> bool:
         """Determine if two findings are similar enough to be grouped."""
-        # Same file and close line numbers
-        if (finding1.file_path == finding2.file_path and
-            abs(finding1.line_number - finding2.line_number) <= 2):
+        # Only group if BOTH conditions are met:
+        # 1. Same file
+        # 2. Same secret value (or very close line numbers for the exact same pattern)
+        
+        if finding1.file_path != finding2.file_path:
+            return False
+            
+        # If same secret value, group them
+        if finding1.raw_value and finding1.raw_value == finding2.raw_value:
             return True
-
-        # Same secret value
-        if finding1.raw_value == finding2.raw_value and finding1.raw_value:
-            return True
-
+            
+        # If different values but on the exact same line (multi-pattern match), don't group
+        if finding1.line_number == finding2.line_number and finding1.raw_value != finding2.raw_value:
+            return False
+            
+        # Don't group different secrets just because they're close in the file
         return False
 
     def _fuse_finding_group(self, group: List[SecretFinding]) -> SecretFinding:
@@ -614,21 +657,53 @@ class ProfessionalSecretOrchestrator:
         # Ensure confidence is between 0 and 1
         return max(0.0, min(1.0, confidence))
 
-    def _classify_secret_type(self, detector_name: str) -> SecretType:
-        """Classify secret type based on detector name."""
+    def _classify_secret_type(self, detector_name: str, finding: Optional['SecretFinding'] = None) -> SecretType:
+        """Classify secret type based on detector name or pattern type, with context awareness."""
         detector_lower = detector_name.lower()
 
-        if any(term in detector_lower for term in ["api", "key"]):
+        # Direct mapping for pattern types from semantic analysis
+        if detector_lower == "api_key":
+            return SecretType.API_KEY
+        elif detector_lower == "token":
+            return SecretType.TOKEN
+        elif detector_lower == "password":
+            return SecretType.PASSWORD
+        elif detector_lower == "credential":
+            return SecretType.UNKNOWN
+        elif detector_lower == "private_key":
+            return SecretType.PRIVATE_KEY
+        elif detector_lower == "cloud_credentials":
+            return SecretType.CLOUD_CREDENTIAL
+        elif detector_lower == "database_urls":
+            return SecretType.DATABASE_CREDENTIAL
+        elif detector_lower == "env_variables":
+            # For env variables, check the key name from metadata if available
+            if finding and finding.metadata.get("key_name"):
+                key_name = finding.metadata["key_name"].upper()
+                if "JWT" in key_name:
+                    return SecretType.TOKEN
+                elif any(term in key_name for term in ["PASSWORD", "PASSWD", "PWD"]):
+                    return SecretType.PASSWORD
+                elif "API" in key_name or "KEY" in key_name:
+                    return SecretType.API_KEY
+            return SecretType.API_KEY  # Default for env secrets
+        
+        # Check for specific vendor patterns in the detector name
+        if any(vendor in detector_lower for vendor in ["openai", "sendgrid", "stripe", "github", "gitlab"]):
+            return SecretType.API_KEY
+        
+        # Fallback to keyword matching for tool-specific detectors
+        if any(term in detector_lower for term in ["api", "key", "apikey", "api_key"]):
             return SecretType.API_KEY
         elif any(term in detector_lower for term in ["aws", "azure", "gcp", "cloud"]):
             return SecretType.CLOUD_CREDENTIAL
-        elif any(term in detector_lower for term in ["database", "db", "sql", "mongo"]):
+        elif any(term in detector_lower for term in ["database", "db", "sql", "mongo", "postgres", "mysql"]):
             return SecretType.DATABASE_CREDENTIAL
-        elif any(term in detector_lower for term in ["private", "rsa", "ssh"]):
+        elif any(term in detector_lower for term in ["private", "rsa", "ssh", "dsa", "ecdsa"]):
             return SecretType.PRIVATE_KEY
-        elif any(term in detector_lower for term in ["token", "jwt", "bearer"]):
+        elif any(term in detector_lower for term in ["token", "jwt", "bearer", "oauth"]):
             return SecretType.TOKEN
-        elif any(term in detector_lower for term in ["password", "passwd", "pwd"]):
+        elif any(term in detector_lower for term in ["password", "passwd", "pwd", "pass"]):
             return SecretType.PASSWORD
         elif any(term in detector_lower for term in ["cert", "certificate", "pem"]):
             return SecretType.CERTIFICATE

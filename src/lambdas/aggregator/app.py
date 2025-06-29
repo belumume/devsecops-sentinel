@@ -152,10 +152,21 @@ def format_github_comment(findings: Dict[str, List[Any]], repo_details: Dict[str
         Formatted Markdown comment
     """
     secrets_count = len(findings.get('secrets', []))
-    vulns_count = len(findings.get('vulnerabilities', []))
+    vulns_list = findings.get('vulnerabilities', [])
+    vulns_count = len(vulns_list)  # Total vulnerabilities for logging
     ai_count = len(findings.get('ai_suggestions', []))
     errors_count = len(findings.get('errors', []))
     tool_errors_count = len(findings.get('tool_errors', []))
+    
+    # Count unique packages affected by vulnerabilities
+    unique_packages = set()
+    for vuln in vulns_list:
+        package = vuln.get('package', 'unknown')
+        version = vuln.get('installed_version', vuln.get('version', '?'))
+        key = f"{package}@{version}"
+        unique_packages.add(key)
+    
+    package_count = len(unique_packages)
     
     # Build the comment sections
     sections = []
@@ -167,16 +178,16 @@ def format_github_comment(findings: Dict[str, List[Any]], repo_details: Dict[str
     if tool_errors_count > 0:
         sections.append(format_tool_errors_section(findings['tool_errors']))
     
-    # Summary table
-    sections.append(format_summary_table(secrets_count, vulns_count, ai_count))
+    # Summary table - use package count for display
+    sections.append(format_summary_table(secrets_count, package_count, ai_count))
     
     # Secret findings
     if secrets_count > 0:
         sections.append(format_secrets_section(findings['secrets'], secrets_count))
     
-    # Vulnerability findings
+    # Vulnerability findings - pass full list but display will group by package
     if vulns_count > 0:
-        sections.append(format_vulnerabilities_section(findings['vulnerabilities'], vulns_count))
+        sections.append(format_vulnerabilities_section(vulns_list, vulns_count))
     
     # AI suggestions
     if ai_count > 0:
@@ -197,7 +208,7 @@ def format_header() -> str:
     return "## 🔍 DevSecOps Sentinel Analysis Report"
 
 
-def format_summary_table(secrets_count: int, vulns_count: int, ai_count: int) -> str:
+def format_summary_table(secrets_count: int, vulnerable_packages_count: int, ai_count: int) -> str:
     """Format the summary table section - Enhanced to match README example."""
     # Determine status for each scanner
     if secrets_count > 0:
@@ -207,7 +218,7 @@ def format_summary_table(secrets_count: int, vulns_count: int, ai_count: int) ->
         secrets_icon = "✅"
         secrets_status = "Clean"
     
-    if vulns_count > 0:
+    if vulnerable_packages_count > 0:
         vulns_icon = "🟡"
         vulns_status = "**Review Needed**"
     else:
@@ -226,7 +237,7 @@ def format_summary_table(secrets_count: int, vulns_count: int, ai_count: int) ->
 | Scanner | Status | Findings |
 |:---|:---:|:---|
 | {secrets_icon} Secret Scanner | {secrets_status} | {secrets_count} secrets found |
-| {vulns_icon} Vulnerability Scanner | {vulns_status} | {vulns_count} vulnerabilities found |
+| {vulns_icon} Vulnerability Scanner | {vulns_status} | {vulnerable_packages_count} vulnerable packages |
 | {ai_icon} AI Code Review | {ai_status} | {ai_count} suggestions |"""
 
 
@@ -236,7 +247,16 @@ def format_secrets_section(secrets: List[Dict[str, Any]], total_count: int) -> s
     section += "**Immediate action required:** Remove these secrets and rotate them.\n\n"
     
     for i, secret in enumerate(secrets[:COMMENT_MAX_SECRETS], 1):
-        secret_type = secret.get('type', 'Secret')
+        # Handle both 'type' and 'secret_type' fields, and format properly
+        raw_type = secret.get('type', secret.get('secret_type', 'Secret'))
+        # Convert enum values like "SecretType.API_KEY" to readable format
+        if 'SecretType.' in str(raw_type):
+            secret_type = str(raw_type).replace('SecretType.', '').replace('_', ' ').title()
+        else:
+            secret_type = str(raw_type).replace('_', ' ').title()
+        # Handle "unknown" as a special case
+        if secret_type.lower() == 'unknown':
+            secret_type = 'Secret'
         file_path = secret.get('file', 'unknown')
         line_num = secret.get('line', '?')
         # Format exactly like README example
@@ -246,7 +266,16 @@ def format_secrets_section(secrets: List[Dict[str, Any]], total_count: int) -> s
         # Use collapsible section for remaining secrets
         section += f"\n<details>\n<summary>... and {total_count - COMMENT_MAX_SECRETS} more secrets found</summary>\n\n"
         for i, secret in enumerate(secrets[COMMENT_MAX_SECRETS:], COMMENT_MAX_SECRETS + 1):
-            secret_type = secret.get('type', 'Secret')
+            # Handle both 'type' and 'secret_type' fields, and format properly
+            raw_type = secret.get('type', secret.get('secret_type', 'Secret'))
+            # Convert enum values like "SecretType.API_KEY" to readable format
+            if 'SecretType.' in str(raw_type):
+                secret_type = str(raw_type).replace('SecretType.', '').replace('_', ' ').title()
+            else:
+                secret_type = str(raw_type).replace('_', ' ').title()
+            # Handle "unknown" as a special case
+            if secret_type.lower() == 'unknown':
+                secret_type = 'Secret'
             file_path = secret.get('file', 'unknown')
             line_num = secret.get('line', '?')
             section += f"{i}. **{secret_type}** found in `{file_path}` at line `{line_num}`\n"
@@ -256,39 +285,96 @@ def format_secrets_section(secrets: List[Dict[str, Any]], total_count: int) -> s
 
 
 def format_vulnerabilities_section(vulnerabilities: List[Dict[str, Any]], total_count: int) -> str:
-    """Format the vulnerabilities findings section - Enhanced formatting."""
+    """Format the vulnerabilities findings section - Enhanced formatting with grouping by package."""
     section = "\n### 🟡 Dependency Vulnerabilities Detected\n"
-    section += "**Action needed:** Update the following packages to their secure versions.\n\n"
     
-    for i, vuln in enumerate(vulnerabilities[:COMMENT_MAX_VULNERABILITIES], 1):
-        severity = vuln.get('severity', 'UNKNOWN')
-        severity_emoji = "🔴" if severity in ['HIGH', 'CRITICAL'] else "🟡"
-        
+    # Group vulnerabilities by package and version
+    package_vulns = {}
+    for vuln in vulnerabilities:
         package = vuln.get('package', 'unknown')
-        installed_version = vuln.get('installed_version', vuln.get('version', '?'))
-        fixed_version = vuln.get('fixed_version', '?')
-        vulnerability = vuln.get('vulnerability', vuln.get('vulnerability_id', 'Unknown CVE'))
-        description = vuln.get('description', 'No description')
+        version = vuln.get('installed_version', vuln.get('version', '?'))
+        key = f"{package}@{version}"
         
-        section += f"{i}. {severity_emoji} **{package}** `{installed_version}` → `{fixed_version}`\n"
-        section += f"   - {vulnerability}: {description}\n"
+        if key not in package_vulns:
+            package_vulns[key] = {
+                'package': package,
+                'version': version,
+                'fixed_versions': [],
+                'vulnerabilities': []
+            }
+        
+        # Collect fixed versions
+        fixed_version = vuln.get('fixed_version', '')
+        if fixed_version and fixed_version != '?' and fixed_version not in package_vulns[key]['fixed_versions']:
+            package_vulns[key]['fixed_versions'].append(fixed_version)
+        
+        # Add vulnerability details
+        package_vulns[key]['vulnerabilities'].append({
+            'id': vuln.get('vulnerability', vuln.get('vulnerability_id', 'Unknown')),
+            'severity': vuln.get('severity', 'UNKNOWN'),
+            'description': vuln.get('description', 'No description')
+        })
     
-    if total_count > COMMENT_MAX_VULNERABILITIES:
-        # Use collapsible section for remaining vulnerabilities
-        section += f"\n<details>\n<summary>... and {total_count - COMMENT_MAX_VULNERABILITIES} more vulnerabilities found</summary>\n\n"
-        for i, vuln in enumerate(vulnerabilities[COMMENT_MAX_VULNERABILITIES:], COMMENT_MAX_VULNERABILITIES + 1):
-            severity = vuln.get('severity', 'UNKNOWN')
-            severity_emoji = "🔴" if severity in ['HIGH', 'CRITICAL'] else "🟡"
+    # Sort packages by number of vulnerabilities (most vulnerable first)
+    sorted_packages = sorted(package_vulns.items(), key=lambda x: len(x[1]['vulnerabilities']), reverse=True)
+    
+    # Count affected packages
+    package_count = len(sorted_packages)
+    section += f"**Action needed:** Update the following {package_count} packages to their secure versions.\n\n"
+    
+    # Show first 10 packages directly
+    for i, (key, pkg_info) in enumerate(sorted_packages[:COMMENT_MAX_VULNERABILITIES], 1):
+        # Determine severity emoji based on highest severity vulnerability
+        severities = [v['severity'] for v in pkg_info['vulnerabilities']]
+        severity_emoji = "🔴" if any(s in ['HIGH', 'CRITICAL'] for s in severities) else "🟡"
+        
+        # Determine fixed version (prefer latest if multiple)
+        if pkg_info['fixed_versions']:
+            # Sort versions and take the latest
+            fixed_version = sorted(pkg_info['fixed_versions'])[-1]
+        else:
+            fixed_version = "?"
+        
+        section += f"{i}. {severity_emoji} **{pkg_info['package']}** `{pkg_info['version']}` → `{fixed_version}`\n"
+        
+        # Show up to 3 vulnerabilities directly
+        vuln_list = pkg_info['vulnerabilities']
+        for j, vuln in enumerate(vuln_list[:3]):
+            section += f"   - {vuln['id']}: {vuln['description']}\n"
+        
+        # If more than 3 vulnerabilities, show count
+        if len(vuln_list) > 3:
+            section += f"   - ... and {len(vuln_list) - 3} more vulnerabilities\n"
+    
+    # Remaining packages in collapsible section
+    if package_count > COMMENT_MAX_VULNERABILITIES:
+        section += f"\n<details>\n<summary>... and {package_count - COMMENT_MAX_VULNERABILITIES} more vulnerable packages found</summary>\n\n"
+        
+        for i, (key, pkg_info) in enumerate(sorted_packages[COMMENT_MAX_VULNERABILITIES:], COMMENT_MAX_VULNERABILITIES + 1):
+            # Determine severity emoji
+            severities = [v['severity'] for v in pkg_info['vulnerabilities']]
+            severity_emoji = "🔴" if any(s in ['HIGH', 'CRITICAL'] for s in severities) else "🟡"
             
-            package = vuln.get('package', 'unknown')
-            installed_version = vuln.get('installed_version', vuln.get('version', '?'))
-            fixed_version = vuln.get('fixed_version', '?')
-            vulnerability = vuln.get('vulnerability', vuln.get('vulnerability_id', 'Unknown CVE'))
-            description = vuln.get('description', 'No description')
+            # Determine fixed version
+            if pkg_info['fixed_versions']:
+                fixed_version = sorted(pkg_info['fixed_versions'])[-1]
+            else:
+                fixed_version = "?"
             
-            section += f"{i}. {severity_emoji} **{package}** `{installed_version}` → `{fixed_version}`\n"
-            section += f"   - {vulnerability}: {description}\n"
+            section += f"{i}. {severity_emoji} **{pkg_info['package']}** `{pkg_info['version']}` → `{fixed_version}`\n"
+            
+            # Show vulnerabilities
+            vuln_list = pkg_info['vulnerabilities']
+            for j, vuln in enumerate(vuln_list[:3]):
+                section += f"   - {vuln['id']}: {vuln['description']}\n"
+            
+            if len(vuln_list) > 3:
+                section += f"   - ... and {len(vuln_list) - 3} more vulnerabilities\n"
+        
         section += "\n</details>\n"
+    
+    # Add total vulnerability count at the end
+    section += f"\n*Total: {total_count} vulnerabilities across {package_count} packages*\n"
     
     return section
 
