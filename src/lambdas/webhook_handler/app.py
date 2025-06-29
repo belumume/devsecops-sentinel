@@ -26,7 +26,17 @@ def get_github_token() -> str:
     secret_name = os.environ.get("GITHUB_TOKEN_SECRET_NAME", "DevSecOpsSentinel/GitHubToken")
     try:
         response = secrets_manager.get_secret_value(SecretId=secret_name)
-        return response["SecretString"]
+        secret_string = response["SecretString"]
+        
+        # Parse JSON if the secret is stored as JSON
+        try:
+            secret_json = json.loads(secret_string)
+            # Try to get GITHUB_TOKEN key, or use the whole string if it's not JSON
+            return secret_json.get("GITHUB_TOKEN", secret_string)
+        except json.JSONDecodeError:
+            # If it's not JSON, return as-is
+            return secret_string
+            
     except Exception as e:
         logger.error(f"Failed to retrieve GitHub token: {e}")
         raise
