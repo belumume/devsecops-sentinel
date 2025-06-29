@@ -1229,6 +1229,69 @@ class ProfessionalSecretOrchestrator:
             return True
             
         return False
+    
+    def _run_orchestrator(self, repo_path: str) -> List[SecretFinding]:
+        """Run multi-tool orchestrator if available."""
+        findings = []
+        orchestrator_path = "/opt/bin/scan-secrets"
+        
+        if not os.path.exists(orchestrator_path):
+            return findings
+            
+        try:
+            logger.info("🔧 Running multi-tool secret scanner orchestrator...")
+            cmd = [orchestrator_path, repo_path, "json"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            
+            if result.stdout:
+                try:
+                    # Parse orchestrator output
+                    data = json.loads(result.stdout)
+                    
+                    # Process TruffleHog results
+                    for section in data:
+                        if "TruffleHog Results" in str(section):
+                            continue  # Skip if already processed
+                            
+                        # Process GitLeaks results  
+                        if isinstance(section, dict) and section.get("Description"):
+                            finding = SecretFinding(
+                                tool="gitleaks_orchestrator",
+                                secret_type=self._classify_secret_type(section.get("RuleID", "")),
+                                confidence=ConfidenceLevel.HIGH,
+                                file_path=section.get("File", ""),
+                                line_number=section.get("StartLine", 0),
+                                raw_value=section.get("Secret", ""),
+                                masked_value=self._mask_secret(section.get("Secret", "")),
+                                pattern_match=True,
+                                metadata={"source": "orchestrator", "rule": section.get("RuleID", "")}
+                            )
+                            findings.append(finding)
+                            
+                        # Process Semgrep results
+                        if isinstance(section, dict) and section.get("check_id"):
+                            finding = SecretFinding(
+                                tool="semgrep_orchestrator",
+                                secret_type=self._classify_secret_type(section.get("check_id", "")),
+                                confidence=ConfidenceLevel.MEDIUM,
+                                file_path=section.get("path", ""),
+                                line_number=section.get("start", {}).get("line", 0),
+                                raw_value=section.get("extra", {}).get("message", ""),
+                                masked_value=self._mask_secret(section.get("extra", {}).get("message", "")),
+                                pattern_match=True,
+                                metadata={"source": "orchestrator", "rule": section.get("check_id", "")}
+                            )
+                            findings.append(finding)
+                            
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse orchestrator output: {e}")
+                    
+            logger.info(f"🔧 Orchestrator found {len(findings)} additional secrets")
+            
+        except Exception as e:
+            logger.error(f"Orchestrator execution failed: {e}")
+            
+        return findings
 
 def lambda_handler(event, context):
     """

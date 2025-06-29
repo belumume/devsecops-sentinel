@@ -96,19 +96,40 @@ Resources:
     Properties:
       CodeUri: src/lambdas/secret_scanner/
       Handler: app.lambda_handler
+      MemorySize: 1024  # Increased for multiple tools
+      Timeout: 300  # Extended timeout for comprehensive scanning
       Layers:
         - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOps-Scanner-Layer:2
         - arn:aws:lambda:us-east-1:390402580689:layer:DevSecOpsSentinel-Final:3
+        # Uncomment when enhanced layer is available
+        # - !Ref EnhancedScannerLayer
       Policies:
         - Statement:
           - Effect: Allow
             Action:
               - "secretsmanager:GetSecretValue"
             Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:DevSecOpsSentinel/GitHubToken-*"
+          # Additional permissions for AWS integration
+          - Effect: Allow
+            Action:
+              - "macie2:GetMacieSession"
+              - "macie2:CreateClassificationJob"
+              - "macie2:ListCustomDataIdentifiers"
+              - "securityhub:EnableSecurityHub"
+              - "securityhub:GetFindings"
+              - "securityhub:BatchImportFindings"
+              - "s3:CreateBucket"
+              - "s3:PutBucketEncryption"
+              - "s3:HeadBucket"
+              - "sts:GetCallerIdentity"
+            Resource: "*"
       Environment:
         Variables:
           GITHUB_TOKEN_SECRET_NAME: "DevSecOpsSentinel/GitHubToken"
           PATH: "/opt/bin:/usr/local/bin:/usr/bin:/bin"
+          ENABLE_FALLBACK_DETECTION: "always"  # Changed to always for maximum coverage
+          ENABLE_AWS_INTEGRATION: "false"  # Set to true to enable AWS Macie/Security Hub
+          SCAN_MODE: "comprehensive"  # comprehensive | fast | balanced
 
   VulnerabilityScannerFunction:
     Type: AWS::Serverless::Function
