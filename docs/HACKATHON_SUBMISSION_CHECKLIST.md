@@ -12,7 +12,7 @@
 ### 🔍 Scanners
 - [x] **Secret Scanner** - Real TruffleHog + 5-layer detection
 - [x] **Vulnerability Scanner** - Real OSV API integration
-- [x] **AI Code Review** - Real Amazon Bedrock Claude 3.5
+- [x] **AI Code Review** - Real Amazon Bedrock Claude Sonnet 4
 - [x] **No Hardcoding** - Dynamic patterns, real-time databases
 - [x] **Professional Implementation** - No simulations or fake data
 

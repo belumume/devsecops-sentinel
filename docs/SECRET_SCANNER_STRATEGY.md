@@ -63,8 +63,8 @@ docker run --rm -v ${PWD}:/output scanner-layer
 ```python
 # Use pre-built layers from AWS or community
 LAYERS = {
-    'trufflehog': 'arn:aws:lambda:us-east-1:xxx:layer:trufflehog:1',
-    'gitleaks': 'arn:aws:lambda:us-east-1:xxx:layer:gitleaks:1',
+            'trufflehog': 'arn:aws:lambda:us-east-1:ACCOUNT_ID:layer:trufflehog:1',
+        'gitleaks': 'arn:aws:lambda:us-east-1:ACCOUNT_ID:layer:gitleaks:1',
     # Community layers often available
 }
 ```

@@ -353,4 +353,4 @@ See `tests/integration/test_end_to_end.py` for complete examples.
 ---
 
 **API Version**: 1.0.0  
-**Last Updated**: December 2024 
+**Last Updated**: June 2025 

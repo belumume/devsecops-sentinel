@@ -95,11 +95,8 @@ secrets_manager = boto3.client("secretsmanager", region_name='us-east-1')
 SCANNER_TYPE = "secrets"
 SCANNER_VERSION = "4.0-PROFESSIONAL"
 
-# CRITICAL MODULE-LEVEL TEST - This should appear during import
-print("🚨 MODULE IMPORT SUCCESSFUL - CRITICAL TEST MESSAGE")
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-logger.info("🚨 MODULE IMPORT SUCCESSFUL - CRITICAL TEST MESSAGE")
 
 class ConfidenceLevel(Enum):
     """Professional confidence scoring system."""
@@ -151,7 +148,7 @@ class ProfessionalSecretOrchestrator:
 
         logger.info(f"🎯 Professional Secret Scanner v{SCANNER_VERSION} initialized")
         logger.info(f"GitHub token length: {len(self.github_token) if self.github_token else 0}")
-        logger.info(f"GitHub token starts with: {self.github_token[:10] if self.github_token else 'None'}...")
+        logger.info("GitHub token successfully loaded")
         logger.info(f"Available tools: {list(self.available_tools.keys())}")
     
     def _discover_professional_tools(self) -> Dict[str, str]:
@@ -358,7 +355,7 @@ class ProfessionalSecretOrchestrator:
                     r'{keyword}["\']?\s*[:=]\s*["\']([^"\'{{}}]+)["\']',
                     r'{keyword}\s*=\s*["\']?([^"\'\s{{}}]+)["\']?',
                     # Exclude common placeholder patterns
-                    r'{keyword}["\']?\s*[:=]\s*["\'](?!(?:password|example|changeme|admin|test|demo|sample|placeholder|xxx+)["\'$])([^"\'{{}}]+)["\']'
+                    r'{keyword}["\']?\s*[:=]\s*["\'](?!(?:password|example|changeme|admin|test|demo|sample|placeholder)["\'$])([^"\'{{}}]+)["\']'
                 ]
             },
             'credential': {
@@ -807,7 +804,7 @@ class ProfessionalSecretOrchestrator:
         tool_path = self.available_tools["trufflehog"]
 
         try:
-            # Debug: List files in repo to verify content
+    
             import os
             logger.info(f"🔍 Repository path: {repo_path}")
             for root, dirs, files in os.walk(repo_path):
@@ -910,7 +907,7 @@ class ProfessionalSecretOrchestrator:
                             findings.append(finding)
                 except json.JSONDecodeError as e:
                     logger.error(f"Failed to parse GitLeaks output: {e}")
-                    logger.debug(f"GitLeaks stdout: {result.stdout[:500]}")
+    
 
             logger.info(f"🔍 GitLeaks found {len(findings)} secrets")
 
@@ -1378,29 +1375,9 @@ def lambda_handler(event, context):
     Returns:
         Professional response with comprehensive findings
     """
-    # CRITICAL TEST - This should appear in logs if function executes
-    print("🚨 LAMBDA_HANDLER STARTED - CRITICAL TEST MESSAGE")
-    logger.info("🚨 LAMBDA_HANDLER STARTED - CRITICAL TEST MESSAGE")
+    logger.info(f"🎯 Professional Secret Scanner v{SCANNER_VERSION} - Enterprise Grade")
 
-    logger.info(f"🎯 Professional Secret Scanner v{SCANNER_VERSION} - Enterprise Grade - FORCED DEPLOY 2025-06-28 15:05")
 
-    # DEBUG: Check what tools are actually available
-    logger.info(f"🔍 PATH environment: {os.environ.get('PATH', 'NOT SET')}")
-    logger.info("🔍 Scanner not initialized yet - will check tools after creation")
-
-    # DEBUG: Check if basic files exist
-    import subprocess
-    try:
-        result = subprocess.run(['ls', '/opt/bin/'], capture_output=True, text=True, timeout=10)
-        logger.info(f"🔍 /opt/bin/ contents: {result.stdout}")
-    except Exception as e:
-        logger.info(f"🔍 Cannot list /opt/bin/: {e}")
-
-    try:
-        result = subprocess.run(['which', 'trufflehog'], capture_output=True, text=True, timeout=10)
-        logger.info(f"🔍 which trufflehog: {result.stdout.strip() if result.stdout else 'NOT FOUND'}")
-    except Exception as e:
-        logger.info(f"🔍 which trufflehog failed: {e}")
     
     try:
         # Extract repository details
@@ -1416,7 +1393,6 @@ def lambda_handler(event, context):
         # Initialize professional orchestrator
         orchestrator = ProfessionalSecretOrchestrator()
 
-        # DEBUG: Check what tools are actually available after scanner creation
         logger.info(f"🔍 Available tools discovered: {list(orchestrator.available_tools.keys())}")
 
         # Download and scan repository

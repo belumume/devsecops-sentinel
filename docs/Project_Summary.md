@@ -2,7 +2,7 @@
 
 ## Current Status: PRODUCTION READY 🎉
 
-**Last Updated:** December 29, 2024
+**Last Updated:** June 30, 2025
 
 ### System Overview
 DevSecOps Sentinel is a **fully operational**, AI-powered security analysis platform that automatically scans GitHub Pull Requests for:
@@ -18,14 +18,14 @@ DevSecOps Sentinel is a **fully operational**, AI-powered security analysis plat
   - Progress comments now post immediately when PR is opened
   - Users see instant feedback instead of waiting in silence
 
-### December 29, 2024 - Part 2
+### June 30, 2025 - Part 2
 - **Progress Indicator**: Added immediate feedback when PR is opened
   - Shows "Analysis in progress..." comment instantly
   - Updates same comment with results (no duplicate comments)
   - Includes loading animation and ETA
   - Improves user retention and experience
 
-### December 29, 2024
+### June 30, 2025 - Part 1
 - **Fixed Version Display**: Vulnerability scanner now converts commit SHAs to user-friendly messages
   - Before: `Pillow 5.0.0 → a79b65c47c7dc6fe623aadf09aa6192fc54548f3`
   - After: `Pillow 5.0.0 → check PyPI for latest`
@@ -46,7 +46,7 @@ DevSecOps Sentinel is a **fully operational**, AI-powered security analysis plat
   - WebhookHandlerFunction: Validates and processes GitHub webhooks
   - SecretScannerFunction: Multi-layer secret detection
   - VulnerabilityScannerFunction: OSV-based dependency scanning
-  - AIReviewerFunction: Claude 3.5 Sonnet code analysis
+  - AIReviewerFunction: Claude Sonnet 4 code analysis
   - AggregatorFunction: Consolidates results and posts to GitHub
 - **DynamoDB**: Audit trail for all scans
 - **Secrets Manager**: Secure token storage
@@ -66,7 +66,7 @@ DevSecOps Sentinel is a **fully operational**, AI-powered security analysis plat
 - **Grouped display**: Shows vulnerabilities by package, not individual CVEs
 
 #### 💡 AI Code Review
-- **Powered by Claude 3.5 Sonnet**: Latest AI model via Amazon Bedrock
+- **Powered by Claude Sonnet 4**: Latest AI model via Amazon Bedrock with cross-region inference
 - **Comprehensive analysis**: Security, performance, and code quality
 - **Prioritized suggestions**: High/Medium/Low priority recommendations
 - **Context-aware**: Understands the specific changes in each PR

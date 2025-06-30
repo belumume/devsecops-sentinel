@@ -6,7 +6,7 @@
 - **Status**: ✅ Fully Operational
 - **API Endpoint**: `https://lbxly3f2e3.execute-api.us-east-1.amazonaws.com/prod/webhook`
 - **Region**: us-east-1
-- **Last Updated**: 2025-06-28
+- **Last Updated**: 2025-06-30
 
 ### Lambda Layer Architecture
 

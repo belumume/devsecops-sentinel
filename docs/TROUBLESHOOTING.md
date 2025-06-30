@@ -20,7 +20,7 @@
 
 **Check Layer Attachment:**
 ```bash
-aws lambda get-function --function-name devsecops-sentinel-SecretScannerFunction-XXXXX --query "Configuration.Layers"
+aws lambda get-function --function-name devsecops-sentinel-SecretScannerFunction-[ID] --query "Configuration.Layers"
 ```
 
 **Verify Layer Contents:**
@@ -348,4 +348,4 @@ For critical issues:
 
 ---
 
-*This troubleshooting guide is regularly updated. Last updated: 2025-06-27*
+*This troubleshooting guide is regularly updated. Last updated: 2025-06-30*

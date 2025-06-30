@@ -79,7 +79,7 @@ graph TD
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/aws-lambda-hackathon/devsecops-sentinel.git
+git clone https://github.com/belumume/devsecops-sentinel.git
 cd devsecops-sentinel
 ```
 
