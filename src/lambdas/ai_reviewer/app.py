@@ -26,7 +26,7 @@ secrets_manager = boto3.client("secretsmanager")
 
 # Constants
 SCANNER_TYPE = "ai_review"
-BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0")
+BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20240620-v1:0")
 BEDROCK_TIMEOUT = 60
 MAX_TOKENS = 4096
 TEMPERATURE = 0.1

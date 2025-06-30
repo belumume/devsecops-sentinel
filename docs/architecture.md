@@ -106,7 +106,7 @@ DevSecOps Sentinel is a 100% serverless, event-driven security analysis platform
 #### AIReviewer
 - **Memory**: 512 MB
 - **Timeout**: 60 seconds
-- **Model**: Claude 3.5 Sonnet v2 (20241022) via Amazon Bedrock
+- **Model**: Claude 3.5 Sonnet via Amazon Bedrock
 - **Analysis**: Code quality, security, best practices
 
 ### 5. Aggregator Lambda

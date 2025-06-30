@@ -14,7 +14,7 @@ DevSecOps Sentinel is a **REAL, production-ready** serverless application that a
 
 - **🔍 Real Secret Scanning**: Uses TruffleHog to detect hardcoded credentials and API keys
 - **🛡️ Actual Vulnerability Analysis**: Scans Python (safety) and Node.js (npm audit) dependencies for known CVEs
-- **🤖 AI-Powered Code Review**: Leverages Amazon Bedrock with Claude 3.5 Sonnet v2 for intelligent suggestions
+- **🤖 AI-Powered Code Review**: Leverages Amazon Bedrock with Claude 3.5 Sonnet for intelligent suggestions
 - **⚡ Serverless Architecture**: Scales automatically, costs nothing when idle
 - **📊 Comprehensive Reporting**: Posts detailed, actionable comments directly on PRs
 - **🔐 Enterprise Security**: Webhook validation, Secrets Manager integration, least-privilege IAM
@@ -61,7 +61,7 @@ graph TD
 - **Compute**: AWS Lambda (Python 3.11)
 - **Orchestration**: AWS Step Functions
 - **API**: Amazon API Gateway
-- **AI/ML**: Amazon Bedrock (Claude 3.5 Sonnet v2)
+- **AI/ML**: Amazon Bedrock (Claude 3.5 Sonnet)
 - **Storage**: DynamoDB, AWS Secrets Manager
 - **IaC**: AWS SAM (Serverless Application Model)
 
@@ -144,7 +144,7 @@ Step Functions initiates parallel execution of three analysis modules:
 
 - **Secret Scanner**: Detects hardcoded credentials using pattern matching
 - **Vulnerability Scanner**: Analyzes dependencies for known CVEs
-- **AI Reviewer**: Uses Claude 3.5 Sonnet v2 to identify bugs, anti-patterns, and suggest improvements
+- **AI Reviewer**: Uses Claude 3.5 Sonnet to identify bugs, anti-patterns, and suggest improvements
 
 ### 4. **Aggregation & Reporting**
 The Aggregator Lambda:
