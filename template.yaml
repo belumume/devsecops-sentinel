@@ -164,6 +164,9 @@ Resources:
             Action:
               - "bedrock:InvokeModel"
             Resource: 
+              # Access to the inference profile
+              - !Sub "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*"
+              # Access to foundation models in all regions the profile uses
               - !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-sonnet-4-20250514-v1:0"
               - !Sub "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-20250514-v1:0"
           - Effect: Allow
