@@ -19,7 +19,7 @@ Current Phase: Phase 2 - Real Implementation Complete, Ready for Deployment
 * **WebhookHandlerFunction**: ✅ Validates GitHub webhooks and triggers Step Functions
 * **SecretScannerFunction**: ✅ **REAL** - Downloads repos and runs trufflehog binary
 * **VulnerabilityScannerFunction**: ✅ **REAL** - Fetches dependency files and runs safety/npm audit
-* **AIReviewerFunction**: ✅ **REAL** - Fetches PR diffs and analyzes with Amazon Bedrock Claude 3.5
+* **AIReviewerFunction**: ✅ **REAL** - Fetches PR diffs and analyzes with Amazon Bedrock Claude 4
 * **AggregatorFunction**: ✅ **REAL** - Consolidates findings and posts formatted GitHub comments
 * **Security & Infrastructure**: ✅ Webhook validation, Secrets Manager integration, least-privilege IAM
 * **Utility Layer**: ✅ Shared utilities with proper JSON secret parsing
@@ -29,7 +29,7 @@ Current Phase: Phase 2 - Real Implementation Complete, Ready for Deployment
 #### **Real Scanner Implementations Confirmed**
 - **Secret Scanner**: Uses `trufflehog filesystem` command with JSON output parsing
 - **Vulnerability Scanner**: Uses `safety check` for Python and `npm audit` for Node.js
-- **AI Reviewer**: Uses Amazon Bedrock API with Claude 3.5 Sonnet model
+- **AI Reviewer**: Uses Amazon Bedrock API with Claude Sonnet 4 model
 - **GitHub Integration**: Real API calls for fetching diffs and posting comments
 
 #### **Authentication System**

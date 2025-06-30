@@ -31,7 +31,7 @@ Vision: To win the AWS Lambda Hackathon by creating an automated, AI-powered Dev
   * A fan-out architecture for parallel code analysis using AWS Lambda.  
   * **Analysis Module 1: Secret Scanning:** Detect hardcoded credentials using trufflehog.  
   * **Analysis Module 2: Dependency Vulnerability Scanning:** Check requirements.txt (Python) and package.json (Node.js) using the safety library or similar.  
-  * **Analysis Module 3: AI Code Quality Review:** Use Amazon Bedrock (Claude 3.5 Sonnet) to analyze code for bugs, anti-patterns, and non-compliance with best practices.  
+  * **Analysis Module 3: AI Code Quality Review:** Use Amazon Bedrock (Claude Sonnet 4) to analyze code for bugs, anti-patterns, and non-compliance with best practices.  
   * An aggregator Lambda that consolidates all findings and posts a single, well-structured Markdown comment on the corresponding GitHub Pull Request.  
   * A DynamoDB table for logging scan results for auditing.  
   * A simple static web page (hosted on S3) for project information and linking to a sample GitHub repository to demonstrate the tool.  
@@ -149,7 +149,7 @@ The system operates via a fully automated, asynchronous workflow, detailed below
 4. **Parallel Analysis (Fan-Out):** The core of the architecture is a Map state within the Step Function. This state iterates over a static list of analysis types (\['secrets', 'vulnerabilities', 'ai-review'\]) and invokes a dedicated, specialized Lambda function for each type **in parallel**.  
    * **secret-scanner-lambda:** Clones the specific commit of the repository, executes the trufflehog scanner against the codebase, parses the output, and returns a structured list of any identified secrets.  
    * **vulnerability-scanner-lambda:** Clones the repository, locates dependency files (requirements.txt, package.json), executes a vulnerability checker like safety, and returns a structured list of vulnerable packages and their details.  
-   * **ai-reviewer-lambda:** Clones the repository, identifies the specific files changed in the pull request, and for each changed code file, sends its content to **Amazon Bedrock**. It uses a carefully engineered prompt that instructs the Claude 3.5 Sonnet model to act as a senior developer and identify potential bugs, logic errors, anti-patterns, or deviations from best practices. It returns a structured list of actionable suggestions.  
+   * **ai-reviewer-lambda:** Clones the repository, identifies the specific files changed in the pull request, and for each changed code file, sends its content to **Amazon Bedrock**. It uses a carefully engineered prompt that instructs the Claude Sonnet 4 model to act as a senior developer and identify potential bugs, logic errors, anti-patterns, or deviations from best practices. It returns a structured list of actionable suggestions.  
 5. **Aggregation & Reporting (Fan-In):** Once all parallel branches of the Map state complete (successfully or with handled errors), a final aggregator-lambda is invoked. It receives an array containing the outputs from all three scanners.  
    * It consolidates these findings into a single, clean, and well-structured Markdown report, starting with a high-level summary.  
    * It authenticates to the GitHub API using a token securely retrieved from **AWS Secrets Manager**.  

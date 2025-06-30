@@ -21,7 +21,7 @@ Current Phase: Phase 3 Implementation Complete - Ready for Testing & Deployment
 * **Step Functions Orchestration**: Parallel execution of all three scanners via Map state
 * **SecretScannerFunction**: Ready for real implementation (currently simulated)
 * **VulnerabilityScannerFunction**: Created with support for Python/Node.js dependency scanning
-* **AIReviewerFunction**: Configured for Amazon Bedrock integration with Claude 3.5 Sonnet
+* **AIReviewerFunction**: Configured for Amazon Bedrock integration with Claude Sonnet 4
 * **AggregatorFunction**: Enhanced formatting with severity levels, emojis, and categorized findings
 * **DynamoDB Audit Trail**: Logging all scan summaries
 * **Security**: Webhook validation, Secrets Manager integration, least-privilege IAM
@@ -56,7 +56,7 @@ devsecops-sentinel/
    - Returns standardized findings format
 
 2. **AIReviewerFunction**:
-   - Configured for Amazon Bedrock with Claude 3.5 Sonnet
+   - Configured for Amazon Bedrock with Claude Sonnet 4
    - Structured prompt engineering for code quality analysis
    - Categories: Security, Performance, Maintainability, Reliability, Best Practices
 

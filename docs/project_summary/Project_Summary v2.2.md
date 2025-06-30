@@ -22,7 +22,7 @@ Current Phase: **PRODUCTION READY - CODE QUALITY ENHANCED** 🚀
 * **🟢 Step Functions Workflow**: Parallel execution with error handling  
 * **🟢 Secret Scanner**: Real trufflehog integration with retry logic
 * **🟢 Vulnerability Scanner**: Real OSV API integration detecting 206 vulnerabilities
-* **🟢 AI Code Reviewer**: Bedrock Claude 3.5 with retry and truncation
+* **🟢 AI Code Reviewer**: Bedrock Claude 4 with retry and truncation
 * **🟢 Result Aggregation**: Modular formatting with comprehensive reports
 * **🟢 GitHub Comments**: Professional formatting with actionable feedback
 

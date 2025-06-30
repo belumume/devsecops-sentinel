@@ -31,7 +31,7 @@ Vision: To win the AWS Lambda Hackathon by creating an automated, AI-powered Dev
   * A fan-out architecture for parallel code analysis using AWS Lambda.  
   * **Analysis Module 1: Secret Scanning:** Detect hardcoded credentials using trufflehog.  
   * **Analysis Module 2: Dependency Vulnerability Scanning:** Check requirements.txt (Python) and package.json (Node.js) using the safety library or similar.  
-  * **Analysis Module 3: AI Code Quality Review:** Use Amazon Bedrock (Claude 3.5 Sonnet) to analyze code for bugs, anti-patterns, and non-compliance with best practices.  
+  * **Analysis Module 3: AI Code Quality Review:** Use Amazon Bedrock (Claude Sonnet 4) to analyze code for bugs, anti-patterns, and non-compliance with best practices.  
   * An aggregator Lambda that consolidates all findings and posts a single, well-structured Markdown comment on the corresponding GitHub Pull Request.  
   * A DynamoDB table for logging scan results for auditing.  
   * A simple static web page (hosted on S3) for project information and linking to a sample GitHub repository to demonstrate the tool.  

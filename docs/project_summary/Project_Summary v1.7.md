@@ -9,7 +9,7 @@ Current Phase: Phase 4 - REAL Implementation Complete (No More Simulations!)
 * **[2025-06-30]** **SIMULATION REMOVED**: All three scanners now perform REAL analysis
 * **[2025-06-30]** **SECRET SCANNER**: Clones repos and runs actual trufflehog
 * **[2025-06-30]** **VULNERABILITY SCANNER**: Fetches files via GitHub API and runs safety/npm audit
-* **[2025-06-30]** **AI REVIEWER**: Fetches PR diffs and analyzes with real Bedrock/Claude 3.5 Sonnet
+* **[2025-06-30]** **AI REVIEWER**: Fetches PR diffs and analyzes with real Bedrock/Claude Sonnet 4
 * **[2025-06-30]** **LAMBDA LAYER SCRIPTS**: Created build scripts for necessary binaries
 * **[Previous]** Core infrastructure and GitHub integration complete
 
@@ -42,7 +42,7 @@ Current Phase: Phase 4 - REAL Implementation Complete (No More Simulations!)
 
 #### **Real AI Reviewer**
 - Fetches full PR diff via GitHub API
-- Sends to Amazon Bedrock with Claude 3.5 Sonnet
+- Sends to Amazon Bedrock with Claude Sonnet 4
 - Structured prompt for actionable suggestions
 - Parses AI response into categorized findings
 

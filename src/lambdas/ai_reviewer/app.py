@@ -157,7 +157,7 @@ def fetch_pr_details(repo_full_name: str, pr_number: int, github_token: str) -> 
 
 def analyze_with_bedrock(pr_diff: str, pr_details: Dict[str, Any], repo_name: str, pr_number: int) -> List[Dict[str, Any]]:
     """
-    Analyze the PR diff using Amazon Bedrock with Claude 3.5 Sonnet.
+    Analyze the PR diff using Amazon Bedrock with Claude Sonnet 4.
     
     Args:
         pr_diff: Pull request diff content

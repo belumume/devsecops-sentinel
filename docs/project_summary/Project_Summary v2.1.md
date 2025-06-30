@@ -19,7 +19,7 @@ Current Phase: **PRODUCTION READY - FULLY OPERATIONAL** 🎉
 * **🟢 Step Functions Workflow**: Parallel execution of all scanners completing successfully  
 * **🟢 Secret Scanner**: Real trufflehog analysis finding 0 secrets in test repository
 * **🟢 Vulnerability Scanner**: Real safety/npm audit finding 0 vulnerabilities
-* **🟢 AI Code Reviewer**: Real Amazon Bedrock Claude 3.5 analysis generating 15 suggestions
+* **🟢 AI Code Reviewer**: Real Amazon Bedrock Claude 4 analysis generating 15 suggestions
 * **🟢 Result Aggregation**: Consolidated reports with formatted GitHub comments
 * **🟢 GitHub Comments**: Detailed analysis reports automatically posted to PRs
 
@@ -60,7 +60,7 @@ Current Phase: **PRODUCTION READY - FULLY OPERATIONAL** 🎉
 2. **GitHub Integration**: ✅ Webhooks and API integration working
 3. **Parallel Processing**: ✅ Step Functions Map state executing scanners in parallel
 4. **Real Security Analysis**: ✅ trufflehog, safety, npm audit, AI review
-5. **AI Integration**: ✅ Amazon Bedrock Claude 3.5 Sonnet
+5. **AI Integration**: ✅ Amazon Bedrock Claude Sonnet 4
 6. **Infrastructure as Code**: ✅ Complete AWS SAM template
 7. **Production Deployment**: ✅ Fully deployed and operational
 
