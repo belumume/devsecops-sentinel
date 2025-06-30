@@ -84,7 +84,7 @@ The workflow is a streamlined, event-driven process:
 *   **Cloud Platform:** AWS
 *   **IaC Framework:** AWS SAM CLI
 *   **Core Services:** AWS Lambda, AWS Step Functions, Amazon API Gateway, Amazon DynamoDB, AWS Secrets Manager, AWS IAM
-*   **AI Service:** Amazon Bedrock (Model: anthropic.claude-3-5-sonnet-20240620-v1:0)
+*   **AI Service:** Amazon Bedrock (Model: us.anthropic.claude-sonnet-4-20250514-v1:0)
 *   **Programming Language:** Python 3.11
 *   **Key Python Libraries:** boto3, requests, pytest, moto
 *   **Scanning Tools:** trufflehog, safety, npm

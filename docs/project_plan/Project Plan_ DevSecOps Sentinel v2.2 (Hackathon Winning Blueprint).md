@@ -95,7 +95,7 @@ This project will adhere to a specific set of principles and a collaborative dev
 * **TR2:** Core Compute: **AWS Lambda** (Python 3.11).  
 * **TR3:** Workflow Orchestration: **AWS Step Functions**.  
 * **TR4:** API/Trigger: **Amazon API Gateway** with Lambda Authorizer.  
-* **TR5:** AI Model: **Amazon Bedrock** (anthropic.claude-3-5-sonnet-20240620-v1:0).  
+* **TR5:** AI Model: **Amazon Bedrock** (us.anthropic.claude-sonnet-4-20250514-v1:0).  
 * **TR6:** Database: **Amazon DynamoDB**.  
 * **TR7:** Secret Management: **AWS Secrets Manager**.  
 * **TR8:** Version Control Integration: **GitHub** Webhooks and REST API.  
@@ -161,7 +161,7 @@ The system operates via a fully automated, asynchronous workflow, detailed below
 * **Cloud Platform:** AWS  
 * **IaC Framework:** AWS SAM CLI  
 * **Core Services:** AWS Lambda, AWS Step Functions, Amazon API Gateway, Amazon DynamoDB, AWS Secrets Manager, AWS IAM  
-* **AI Service:** Amazon Bedrock (Model: anthropic.claude-3-5-sonnet-20240620-v1:0)  
+* **AI Service:** Amazon Bedrock (Model: us.anthropic.claude-sonnet-4-20250514-v1:0)  
 * **Programming Language:** Python 3.11  
 * **Key Python Libraries:** boto3, requests, py-safety, trufflehog, pytest, moto  
 * **Source Control:** GitHub
