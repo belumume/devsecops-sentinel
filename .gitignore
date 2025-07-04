@@ -112,3 +112,5 @@ local-test/
 past_chat*
 log-events-viewer-result*
 execution-detail*
+*.odt
+chat_history
